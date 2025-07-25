@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Datadog RUM WebView Sample</title>
+
+  <!-- <script type="text/javascript" src="http://localhost:18000/whatap-browser-agent.js"> -->
+  <script>
+  (function (w, h, _a, t, a, b) {
+    w = w[a] = w[a] || {
+      config: {
+        projectAccessKey: "x43bn212o2cou-z5207095h6tmkj-z3k5tbqb529h1q",
+        pcode: 3447,
+        sampleRate: 100,
+        proxyBaseUrl: "https://rumote.whatap-mobile-agent.io/",
+        agentError: true,
+        isWebView:true,
+        xhrTracing: true  
+      },
+    };
+    a = h.createElement(_a);
+    a.async = 1;
+    a.src = t;
+    t = h.getElementsByTagName(_a)[0];
+    t.parentNode.insertBefore(a, t);
+  })(window, document, 'script', 'http://10.160.136.223:18000/whatap-browser-agent.js', 'WhatapBrowserAgent', '');
+  </script>
+  <style>
+    body { font-family: sans-serif; padding: 2rem; }
+    img { max-width: 100%; margin-top: 2rem; box-shadow: 0 0 10px rgba(0,0,0,0.3); }
+  </style>
+</head>
+<body>
+  <h1>🧪 WebView + Datadog RUM Test</h1>
+  <p>This page loads a large image and sends events to Datadog.</p>
+
+  <button onclick="trackClick()">Track Button Click</button>
+
+  <script>
+    function trackClick() {
+      window.DD_RUM && window.DD_RUM.addAction("click_large_image_button", {
+        detail: "User clicked the test button"
+      });
+      alert("Action sent to Datadog!");
+    }
+  </script>
+
+  <!-- Heavy image resource -->
+  <img src="https://upload.wikimedia.org/wikipedia/commons/3/3f/Fronalpstock_big.jpg" alt="Heavy Sample Image" onclick="trackClick()" />
+
+
+<button onclick="sendXhr()">Send XHR</button>
+<button onclick="sendFetch()">Send fetch()</button>
+
+<script>
+  function sendXhr() {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", "https://jsonplaceholder.typicode.com/todos/1");
+    xhr.onload = function () {
+      alert("XHR 완료됨!");
+    };
+    xhr.onerror = function () {
+      alert("XHR 실패");
+    };
+    xhr.send();
+  }
+
+  function sendFetch() {
+    fetch("https://jsonplaceholder.typicode.com/todos/2")
+      .then(res => res.json())
+      .then(json => alert("Fetch 완료됨"))
+      .catch(err => alert("Fetch 실패"));
+  }
+
+      // ✅ 페이지 로드 중에 즉시 XHR 발생
+    (function() {
+      const xhr = new XMLHttpRequest();
+      xhr.open("GET", "https://jsonplaceholder.typicode.com/todos/1");
+      xhr.onload = function () {
+        console.log("초기 XHR 완료:", xhr.responseText);
+      };
+      xhr.onerror = function () {
+        console.error("초기 XHR 실패");
+      };
+      xhr.send();
+      console.log("페이지 로드 중 XHR 전송됨");
+    })();
+</script>
+</body>
+</html>

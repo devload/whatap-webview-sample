@@ -1,0 +1,29 @@
+# Android
+android-app/.gradle/
+android-app/build/
+android-app/local.properties
+android-app/.idea/
+android-app/*.iml
+android-app/app/build/
+android-app/app/*.iml
+android-app/captures/
+android-app/.externalNativeBuild/
+android-app/.cxx/
+
+# Web Server
+web-server/node_modules/
+web-server/.env
+web-server/*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+*.swp
+*.swo
+
+# Caddy
+web-server/.caddy/
+web-server/caddy.log
