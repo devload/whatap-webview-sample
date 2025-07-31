@@ -67,8 +67,8 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
-    // 🎯 상세 로깅 기능이 포함된 최신 BOM AAR
-    implementation(files("lib/whatap-agent-bom-release-detailed-logging.aar"))
+    // 🎯 WebView Bridge 함수 호출 로깅 추가된 BOM AAR
+    implementation(files("lib/whatap-agent-bom-release-with-logging.aar"))
     
     // 필수 의존성
     implementation("androidx.core:core:1.10.1")

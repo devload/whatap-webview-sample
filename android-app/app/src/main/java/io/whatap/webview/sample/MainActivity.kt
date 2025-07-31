@@ -305,5 +305,56 @@ fun WebViewWithUrlController(initialUrl: String) {
                 Text("이동")
             }
         }
+        
+        // Export 로그 표시 영역
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .padding(12.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.Black),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp)
+            ) {
+                Text(
+                    text = "📡 Export 로그 (실시간)",
+                    color = Color.Green,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(exportLogs) { log ->
+                        Text(
+                            text = log,
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(vertical = 1.dp)
+                        )
+                    }
+                    
+                    // 로그가 없을 때 안내 메시지
+                    if (exportLogs.isEmpty()) {
+                        item {
+                            Text(
+                                text = "대기 중... Export 로그가 여기에 표시됩니다.",
+                                color = Color.Gray,
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
