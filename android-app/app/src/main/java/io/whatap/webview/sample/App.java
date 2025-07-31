@@ -14,31 +14,38 @@ public class App extends Application {
     public void onCreate() {
         super.onCreate();
 
-        // 1. QA 파일 로깅 활성화 시도 (통합 버전)
+        // 1. WLogger 초기화 및 디버그 모드 활성화
         try {
             WLoggerFactory.initialize(this);
-            WLoggerFactory.enableFileLogging(this);
-            Log.i(TAG, "✅ QA 파일 로깅 활성화 성공 (통합 버전)");
+            WLoggerFactory.setDebug(true);  // 디버그 모드 활성화
+            Log.i(TAG, "✅ WLogger 디버그 모드 활성화 - HttpSpanExporter JSON 로그 출력됨");
+            
+            // QA 파일 로깅도 활성화 시도
+            try {
+                WLoggerFactory.enableFileLogging(this);
+                Log.i(TAG, "✅ QA 파일 로깅도 활성화됨");
+            } catch (Exception e) {
+                Log.w(TAG, "⚠️ QA 파일 로깅은 지원되지 않음: " + e.getMessage());
+            }
         } catch (Exception e) {
-            Log.w(TAG, "⚠️ QA 파일 로깅 활성화 실패 (API 미지원 가능): " + e.getMessage());
+            Log.w(TAG, "⚠️ WLogger 초기화 실패: " + e.getMessage());
         }
 
-        // 2. WhatapAgent 초기화 (통합 버전 - 모든 PR 포함)
-        String defaultUrl = "https://rumote.whatap-mobile-agent.io/m";
-        SharedPreferences prefs = getSharedPreferences("settings", MODE_PRIVATE);
-        String serverUrl = prefs.getString("server_url", defaultUrl);
-
+        // 2. WhatapAgent 초기화 (Long hash traceId/spanId 테스트)
+        // For emulator use 10.0.2.2, for real device use actual IP
+        String proxyServerUrl = "http://192.168.1.73:8080"; // Real device proxy server
+        
         try {
             WhatapAgent.Builder.newBuilder()
-                    .setServerUrl(serverUrl)
+                    .setServerUrl(proxyServerUrl)
                     .setPCode(3447)
-                    .setProjectKey("x43bn212o2cou-z5207095h6tmkj-z3k5tbqb529h1q")
+                    .setProjectKey("test-project-key")
                     .build(this);
             
-            Log.i(TAG, "🚀 WhatapAgent 초기화 성공 (통합 버전 - PR #7,#8,#9 포함)");
-            Log.i(TAG, "🔧 TaskId 더블 대시 문제 해결 적용됨");
-            Log.i(TAG, "📱 Android 10+ READ_PHONE_STATE 권한 제거 적용됨");
-            Log.i(TAG, "🌐 WebView Task 종료 누락 문제 해결 적용됨");
+            Log.i(TAG, "🚀 WhatapAgent 초기화 성공 (Long hash traceId/spanId)");
+            Log.i(TAG, "🌐 프록시 서버: " + proxyServerUrl);
+            Log.i(TAG, "🔢 traceId/spanId 형식: Long 숫자");
+            Log.i(TAG, "📊 각 screengroup 이벤트마다 고유한 traceId 사용");
         } catch (Exception e) {
             Log.e(TAG, "❌ WhatapAgent 초기화 실패: " + e.getMessage());
         }

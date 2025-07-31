@@ -27,12 +27,35 @@ import io.whatap.android.agent.instrumentation.screengroup.ChainView
 import io.whatap.android.agent.instrumentation.userlog.UserLogger
 import android.os.Handler
 import android.os.Looper
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.unit.dp
 
 class MainActivity : FragmentActivity() {
     companion object {
         private const val TAG = "WebViewSample"
         val chainView = ChainView() // public으로 변경
         const val RELOAD_INTERVAL_MS = 10000L // 10초
+        
+        // Export 로그를 위한 StateFlow
+        private val _exportLogs = MutableStateFlow<List<String>>(emptyList())
+        val exportLogs = _exportLogs.asStateFlow()
+        
+        // 로그 추가 함수
+        fun addExportLog(message: String) {
+            val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
+            val logEntry = "[$timestamp] $message"
+            _exportLogs.value = (_exportLogs.value + logEntry).takeLast(50) // 최근 50개만 유지
+        }
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,6 +64,14 @@ class MainActivity : FragmentActivity() {
 
         // QAFileLogger는 Application에서 이미 설정됨
         Log.i(TAG, "📄 QAFileLogger가 Application에서 설정됨")
+        
+        // Export 로그 수집 시작
+        startLogCollection()
+        
+        // 테스트용 초기 로그 추가
+        addExportLog("🚀 WhatapAgent 모니터링 시작")
+        addExportLog("📱 디바이스: ${android.os.Build.MODEL}")
+        addExportLog("🌐 프록시 서버: http://192.168.1.73:8080")
 
         // 실제 ScreenGroup 시작
         Log.i(TAG, "🔄 실제 ScreenGroup 시작: WebViewFlow")
@@ -75,7 +106,7 @@ class MainActivity : FragmentActivity() {
             Log.e(TAG, "❌ UserLogger 커스텀 로그 전송 실패: ${e.message}")
         }
 
-        val defaultUrl = "http://10.160.136.133:18000/"
+        val defaultUrl = "http://192.168.1.6:18000/"
         val urlFromIntent = intent.getStringExtra("URL") ?: defaultUrl
 
         setContent {
@@ -103,6 +134,48 @@ class MainActivity : FragmentActivity() {
         } catch (e: Exception) {
             Log.d(TAG, "MainActivity 작업 이미 종료됨: ${e.message}")
         }
+    }
+    
+    // logcat을 통해 export 로그 수집
+    private fun startLogCollection() {
+        Thread {
+            try {
+                // 더 광범위한 로그 수집
+                val process = Runtime.getRuntime().exec("logcat -v brief *:W HttpSpanExporter:* WhatapAgent:*")
+                val reader = java.io.BufferedReader(java.io.InputStreamReader(process.inputStream))
+                
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    line?.let { logLine ->
+                        // HttpSpanExporter 관련 로그
+                        if (logLine.contains("HttpSpanExporter") || 
+                            logLine.contains("실제 전송 데이터") || 
+                            logLine.contains("전송 span 개수") ||
+                            logLine.contains("JSON payload") ||
+                            logLine.contains("export") ||
+                            logLine.contains("POST") ||
+                            logLine.contains("trace_id") ||
+                            logLine.contains("span_id")) {
+                            
+                            // 로그에서 태그와 메시지 부분만 추출
+                            val cleanLog = logLine.substringAfter(": ").take(100) // 100자로 제한
+                            addExportLog(cleanLog)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                addExportLog("로그 수집 오류: ${e.message}")
+            }
+        }.start()
+        
+        // 정기적으로 테스트 로그 추가 (개발용)
+        Thread {
+            var count = 0
+            while (true) {
+                Thread.sleep(10000) // 10초마다
+                addExportLog("⏰ 데이터 수집 대기 중... ${++count}")
+            }
+        }.start()
     }
 }
 
@@ -197,6 +270,15 @@ fun WebViewWithUrlController(initialUrl: String) {
     val context = LocalContext.current
     var urlState by remember { mutableStateOf(TextFieldValue(initialUrl)) }
     val webViewRef = remember { mutableStateOf<WebView?>(null) }
+    val exportLogs by MainActivity.exportLogs.collectAsState()
+    val listState = rememberLazyListState()
+    
+    // 새 로그가 추가될 때마다 스크롤을 맨 아래로
+    LaunchedEffect(exportLogs.size) {
+        if (exportLogs.isNotEmpty()) {
+            listState.animateScrollToItem(exportLogs.size - 1)
+        }
+    }
     
     // 10초마다 자동 리로드
     LaunchedEffect(webViewRef.value) {
@@ -303,6 +385,57 @@ fun WebViewWithUrlController(initialUrl: String) {
                 }
             }) {
                 Text("이동")
+            }
+        }
+        
+        // Export 로그 표시 영역
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .padding(12.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.Black),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp)
+            ) {
+                Text(
+                    text = "📡 Export 로그 (실시간)",
+                    color = Color.Green,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(exportLogs) { log ->
+                        Text(
+                            text = log,
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(vertical = 1.dp)
+                        )
+                    }
+                    
+                    // 로그가 없을 때 안내 메시지
+                    if (exportLogs.isEmpty()) {
+                        item {
+                            Text(
+                                text = "대기 중... Export 로그가 여기에 표시됩니다.",
+                                color = Color.Gray,
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+                }
             }
         }
     }
