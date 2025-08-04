@@ -50,6 +50,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.height
 
 class MainActivity : FragmentActivity() {
     companion object {
@@ -151,10 +153,9 @@ class MainActivity : FragmentActivity() {
             WebviewTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Column(modifier = Modifier.padding(innerPadding)) {
+                        // 컴팩트한 레이아웃: 높이와 패딩 축소
                         ServerUrlEditor()
-                        Spacer(modifier = Modifier.height(8.dp))
                         FragmentTestButton()
-                        Spacer(modifier = Modifier.height(8.dp))
                         WebViewWithUrlController(initialUrl = urlFromIntent)
                     }
                 }
@@ -226,9 +227,10 @@ fun FragmentTestButton() {
         },
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp)
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .height(32.dp)
     ) {
-        Text("📱 Activity → Fragment → WebView Chain 테스트")
+        Text("Fragment", fontSize = 11.sp)
     }
 }
 
@@ -244,20 +246,24 @@ fun ServerUrlEditor() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         OutlinedTextField(
             modifier = Modifier.weight(1f),
             value = text,
             onValueChange = { text = it },
-            label = { Text("Server URL") }
+            placeholder = { Text("Server URL", fontSize = 11.sp) },
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
         )
-        Button(onClick = {
+        Button(
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+            onClick = {
             sharedPrefs.edit().putString("server_url", text.text).apply()
             Toast.makeText(context, "서버 주소가 저장되었습니다.\n앱을 재시작해주세요.", Toast.LENGTH_LONG).show()
         }) {
-            Text("저장")
+            Text("저장", fontSize = 10.sp)
         }
     }
 }
@@ -290,7 +296,7 @@ fun WebViewWithUrlController(initialUrl: String) {
 
     Column(modifier = Modifier.fillMaxSize()) {
         AndroidView(
-            modifier = Modifier.weight(0.6f), // WebView 비율을 60%로 줄임
+            modifier = Modifier.weight(0.55f), // WebView 비율을 55%로 설정
             factory = { ctx ->
                 WebView(ctx).apply {
                     settings.javaScriptEnabled = true
@@ -299,7 +305,7 @@ fun WebViewWithUrlController(initialUrl: String) {
                     bridge.configureWebView(this)
                     bridge.startDataUploadTimer()
                     
-                    // 🔥 핵심 수정: WhatapWebViewClient 사용 (통합 버전 API)
+                    // 🔥 핵심 수정: WhatapWebViewClient 사용 (최신 빌드 버전)
                     webViewClient = object : WhatapWebViewClient(bridge) {
                         override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                             super.onPageStarted(view, url, favicon)
@@ -364,16 +370,20 @@ fun WebViewWithUrlController(initialUrl: String) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             OutlinedTextField(
                 modifier = Modifier.weight(1f),
                 value = urlState,
                 onValueChange = { urlState = it },
-                label = { Text("현재 URL") }
+                placeholder = { Text("Enter URL", fontSize = 11.sp) },
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
             )
-            Button(onClick = {
+            Button(
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                onClick = {
                 val urlToLoad = urlState.text
                 if (urlToLoad.startsWith("http")) {
                     webViewRef.value?.loadUrl(urlToLoad)
@@ -381,30 +391,30 @@ fun WebViewWithUrlController(initialUrl: String) {
                     Toast.makeText(context, "유효한 URL이 아닙니다.", Toast.LENGTH_SHORT).show()
                 }
             }) {
-                Text("이동")
+                Text("Go", fontSize = 10.sp)
             }
         }
         
-        // Export 로그 표시 영역 (더 큰 크기)
+        // Export 로그 표시 영역
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.4f) // 나머지 40%를 로그 영역으로 사용
-                .padding(12.dp),
+                .weight(0.45f) // 나머지 45%를 로그 영역으로 사용
+                .padding(horizontal = 8.dp, vertical = 4.dp),
             colors = CardDefaults.cardColors(containerColor = Color.Black),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(8.dp)
+                    .padding(4.dp)
             ) {
                 Text(
-                    text = "📡 Export 로그 & 🌏 WebView 브리지 (실시간)",
+                    text = "📡 Export Log",
                     color = Color.Green,
-                    fontSize = 14.sp, // 제목 크기 증가
+                    fontSize = 10.sp,
                     fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.padding(bottom = 6.dp)
+                    modifier = Modifier.padding(bottom = 2.dp)
                 )
                 
                 LazyColumn(
@@ -415,9 +425,10 @@ fun WebViewWithUrlController(initialUrl: String) {
                         Text(
                             text = log,
                             color = Color.White,
-                            fontSize = 11.sp, // 로그 텍스트 크기 증가
+                            fontSize = 8.sp, // 로그 텍스트 크기 축소
                             fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(vertical = 1.5.dp) // 줄 간격 증가
+                            lineHeight = 10.sp,
+                            modifier = Modifier.padding(vertical = 0.dp) // 줄 간격 제거
                         )
                     }
                     
@@ -427,7 +438,7 @@ fun WebViewWithUrlController(initialUrl: String) {
                             Text(
                                 text = "대기 중... Export 로그와 WebView 브리지 로그가 여기에 표시됩니다.",
                                 color = Color.Gray,
-                                fontSize = 11.sp, // 안내 메시지 크기도 증가
+                                fontSize = 8.sp, // 안내 메시지 크기 축소
                                 fontFamily = FontFamily.Monospace
                             )
                         }

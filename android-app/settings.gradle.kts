@@ -1,5 +1,11 @@
 pluginManagement {
     repositories {
+        // 🎯 Local Maven for WhatapAgent plugin
+        mavenLocal()
+        // 🎯 Local JAR file for WhatapAgent plugin
+        flatDir {
+            dirs("app/lib")
+        }
         google {
             content {
                 includeGroupByRegex("com\\.android.*")

@@ -64,7 +64,7 @@ class TestFragment : Fragment() {
             val bridge = WhatapWebviewBridge(requireContext())
             bridge.configureWebView(this)
             
-            // 🔥 핵심: WhatapWebViewClient 사용 (통합 버전 API)
+            // 🔥 핵심: WhatapWebViewClient 사용 (최신 빌드 버전)
             webViewClient = object : WhatapWebViewClient(bridge) {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                     super.onPageStarted(view, url, favicon)

@@ -3,8 +3,33 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     
-    // TODO: WhatapAgent Gradle Plugin - 플러그인 저장소 확인 필요
-    // id("io.whatap.android.agent") version "2.8.2"
+    // 🎯 최신 WhatapAndroidPlugin 활성화
+    id("io.whatap.plugin") version "1.0.0"
+}
+
+// 🎯 WhatapAndroidPlugin 설정
+whatap {
+    isEnabled = true
+    
+    fragment {
+        enabled = true
+    }
+    
+    okhttp {
+        enabled = true
+    }
+    
+    httpurlconnection {
+        enabled = true
+    }
+    
+    httpclient {
+        enabled = true
+    }
+    
+    volley {
+        enabled = true
+    }
 }
 
 android {
@@ -31,11 +56,11 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "17"
     }
     buildFeatures {
         compose = true
@@ -72,8 +97,8 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
-    // 🎯 WebView Bridge 함수 호출 로깅 추가된 BOM AAR
-    implementation(files("lib/whatap-agent-bom-release-with-logging.aar"))
+    // 🎯 네트워크 모듈 포함된 완전한 AAR 사용
+    implementation(files("lib/whatap-agent-bom-complete.aar"))
     
     // 필수 의존성
     implementation("androidx.core:core:1.10.1")
