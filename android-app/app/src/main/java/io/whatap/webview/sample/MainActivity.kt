@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -27,6 +28,15 @@ import io.whatap.android.agent.instrumentation.screengroup.ChainView
 import io.whatap.android.agent.instrumentation.userlog.UserLogger
 import android.os.Handler
 import android.os.Looper
+import java.net.HttpURLConnection
+import java.net.URL
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -42,9 +52,19 @@ import androidx.compose.ui.unit.dp
 
 class MainActivity : FragmentActivity() {
     companion object {
-        private const val TAG = "WebViewSample"
+        const val TAG = "WebViewSample"
         val chainView = ChainView() // public으로 변경
         const val RELOAD_INTERVAL_MS = 10000L // 10초
+        const val NETWORK_REQUEST_INTERVAL_MS = 5000L // 5초 네트워크 요청 간격
+        
+        // 백그라운드 네트워크 요청용 URLs
+        val TEST_URLS = listOf(
+            "https://httpbin.org/get",
+            "https://jsonplaceholder.typicode.com/posts/1",
+            "https://api.github.com/zen",
+            "https://httpbin.org/uuid",
+            "https://httpbin.org/delay/1"
+        )
         
         // Export 로그를 위한 StateFlow
         private val _exportLogs = MutableStateFlow<List<String>>(emptyList())
@@ -54,7 +74,7 @@ class MainActivity : FragmentActivity() {
         fun addExportLog(message: String) {
             val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
             val logEntry = "[$timestamp] $message"
-            _exportLogs.value = (_exportLogs.value + logEntry).takeLast(50) // 최근 50개만 유지
+            _exportLogs.value = (_exportLogs.value + logEntry).takeLast(100) // 최근 100개로 증가
         }
     }
     
@@ -68,10 +88,24 @@ class MainActivity : FragmentActivity() {
         // Export 로그 수집 시작
         startLogCollection()
         
+        // 백그라운드 네트워크 요청 시작
+        startBackgroundNetworkRequests()
+        
         // 테스트용 초기 로그 추가
         addExportLog("🚀 WhatapAgent 모니터링 시작")
         addExportLog("📱 디바이스: ${android.os.Build.MODEL}")
         addExportLog("🌐 프록시 서버: http://192.168.1.73:8080")
+        addExportLog("🔗 백그라운드 HTTP 요청 시작 (5초 간격)")
+        
+        // WebView 브리지 로그 테스트
+        Thread {
+            Thread.sleep(3000) // 3초 후
+            addExportLog("🔥 [Bridge] 테스트: generateUUID() 호출 시뮬레이션")
+            Thread.sleep(2000) // 2초 후  
+            addExportLog("🔥 [Bridge] 테스트: pageLoad(data, uuid) 호출 시뮬레이션")
+            Thread.sleep(2000) // 2초 후
+            addExportLog("🔥 [Bridge] 테스트: webVitals() 호출 시뮬레이션")
+        }.start()
 
         // 실제 ScreenGroup 시작
         Log.i(TAG, "🔄 실제 ScreenGroup 시작: WebViewFlow")
@@ -136,53 +170,12 @@ class MainActivity : FragmentActivity() {
         }
     }
     
-    // logcat을 통해 export 로그 수집
-    private fun startLogCollection() {
-        Thread {
-            try {
-                // 더 광범위한 로그 수집
-                val process = Runtime.getRuntime().exec("logcat -v brief *:W HttpSpanExporter:* WhatapAgent:*")
-                val reader = java.io.BufferedReader(java.io.InputStreamReader(process.inputStream))
-                
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    line?.let { logLine ->
-                        // HttpSpanExporter 관련 로그
-                        if (logLine.contains("HttpSpanExporter") || 
-                            logLine.contains("실제 전송 데이터") || 
-                            logLine.contains("전송 span 개수") ||
-                            logLine.contains("JSON payload") ||
-                            logLine.contains("export") ||
-                            logLine.contains("POST") ||
-                            logLine.contains("trace_id") ||
-                            logLine.contains("span_id")) {
-                            
-                            // 로그에서 태그와 메시지 부분만 추출
-                            val cleanLog = logLine.substringAfter(": ").take(100) // 100자로 제한
-                            addExportLog(cleanLog)
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                addExportLog("로그 수집 오류: ${e.message}")
-            }
-        }.start()
-        
-        // 정기적으로 테스트 로그 추가 (개발용)
-        Thread {
-            var count = 0
-            while (true) {
-                Thread.sleep(10000) // 10초마다
-                addExportLog("⏰ 데이터 수집 대기 중... ${++count}")
-            }
-        }.start()
-    }
 }
 
 
 @Composable
 fun FragmentTestButton() {
-    val context = LocalContext.current as FragmentActivity
+    val context = LocalActivity.current as FragmentActivity
     
     Button(
         onClick = {
@@ -293,7 +286,7 @@ fun WebViewWithUrlController(initialUrl: String) {
 
     Column(modifier = Modifier.fillMaxSize()) {
         AndroidView(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(0.6f), // WebView 비율을 60%로 줄임
             factory = { ctx ->
                 WebView(ctx).apply {
                     settings.javaScriptEnabled = true
@@ -388,11 +381,11 @@ fun WebViewWithUrlController(initialUrl: String) {
             }
         }
         
-        // Export 로그 표시 영역
+        // Export 로그 표시 영역 (더 큰 크기)
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp)
+                .weight(0.4f) // 나머지 40%를 로그 영역으로 사용
                 .padding(12.dp),
             colors = CardDefaults.cardColors(containerColor = Color.Black),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -403,11 +396,11 @@ fun WebViewWithUrlController(initialUrl: String) {
                     .padding(8.dp)
             ) {
                 Text(
-                    text = "📡 Export 로그 (실시간)",
+                    text = "📡 Export 로그 & 🌏 WebView 브리지 (실시간)",
                     color = Color.Green,
-                    fontSize = 12.sp,
+                    fontSize = 14.sp, // 제목 크기 증가
                     fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.padding(bottom = 4.dp)
+                    modifier = Modifier.padding(bottom = 6.dp)
                 )
                 
                 LazyColumn(
@@ -418,9 +411,9 @@ fun WebViewWithUrlController(initialUrl: String) {
                         Text(
                             text = log,
                             color = Color.White,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp, // 로그 텍스트 크기 증가
                             fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(vertical = 1.dp)
+                            modifier = Modifier.padding(vertical = 1.5.dp) // 줄 간격 증가
                         )
                     }
                     
@@ -428,9 +421,9 @@ fun WebViewWithUrlController(initialUrl: String) {
                     if (exportLogs.isEmpty()) {
                         item {
                             Text(
-                                text = "대기 중... Export 로그가 여기에 표시됩니다.",
+                                text = "대기 중... Export 로그와 WebView 브리지 로그가 여기에 표시됩니다.",
                                 color = Color.Gray,
-                                fontSize = 10.sp,
+                                fontSize = 11.sp, // 안내 메시지 크기도 증가
                                 fontFamily = FontFamily.Monospace
                             )
                         }
@@ -439,4 +432,139 @@ fun WebViewWithUrlController(initialUrl: String) {
             }
         }
     }
+}
+
+/**
+ * 백그라운드 HTTP 네트워크 요청 시작
+ */
+private fun MainActivity.startBackgroundNetworkRequests() {
+    lifecycleScope.launch {
+        var requestCount = 0
+        
+        while (true) {
+            try {
+                delay(MainActivity.NETWORK_REQUEST_INTERVAL_MS)
+                
+                val urlToRequest = MainActivity.TEST_URLS[requestCount % MainActivity.TEST_URLS.size]
+                requestCount++
+                
+                Log.i(MainActivity.TAG, "🔗 백그라운드 HTTP 요청 #$requestCount: $urlToRequest")
+                MainActivity.addExportLog("🔗 HTTP 요청 #$requestCount: ${urlToRequest.substringAfter("//").substringBefore("/")}")
+                
+                val response = makeHttpRequest(urlToRequest)
+                
+                Log.i(MainActivity.TAG, "✅ HTTP 응답 #$requestCount: ${response.substring(0, minOf(100, response.length))}...")
+                MainActivity.addExportLog("✅ HTTP 응답 #$requestCount 수신 (${response.length} bytes)")
+                
+            } catch (e: Exception) {
+                Log.e(MainActivity.TAG, "❌ 백그라운드 HTTP 요청 실패: ${e.message}")
+                MainActivity.addExportLog("❌ HTTP 요청 실패: ${e.message}")
+            }
+        }
+    }
+}
+
+/**
+ * HTTP 요청 실행
+ */
+suspend fun makeHttpRequest(urlString: String): String = withContext(Dispatchers.IO) {
+    var connection: HttpURLConnection? = null
+    try {
+        val url = URL(urlString)
+        connection = url.openConnection() as HttpURLConnection
+        connection.requestMethod = "GET"
+        connection.connectTimeout = 10000
+        connection.readTimeout = 10000
+        connection.setRequestProperty("User-Agent", "WhatapAgent-Android-WebView-Sample/1.0")
+        
+        val responseCode = connection.responseCode
+        
+        val inputStream = if (responseCode == HttpURLConnection.HTTP_OK) {
+            connection.inputStream
+        } else {
+            connection.errorStream
+        }
+        
+        val reader = BufferedReader(InputStreamReader(inputStream))
+        val response = StringBuilder()
+        var line: String?
+        
+        while (reader.readLine().also { line = it } != null) {
+            response.append(line).append("\n")
+        }
+        
+        reader.close()
+        
+        "HTTP $responseCode: ${response.toString()}"
+        
+    } catch (e: Exception) {
+        throw e
+    } finally {
+        connection?.disconnect()
+    }
+}
+
+/**
+ * logcat을 통해 export 로그 수집
+ */
+private fun MainActivity.startLogCollection() {
+    // 디버깅: 로그 수집 시작 알림
+    MainActivity.addExportLog("🔍 로그 수집 시스템 시작...")
+    
+    Thread {
+        try {
+            // WebView 브리지 로그와 HttpSpanExporter 로그 수집
+            val process = Runtime.getRuntime().exec("logcat -v brief")
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            
+            MainActivity.addExportLog("✅ logcat 실행 성공")
+            
+            var line: String?
+            var lineCount = 0
+            while (reader.readLine().also { line = it } != null) {
+                lineCount++
+                
+                // 디버깅: 100번째 라인마다 알림 
+                if (lineCount % 100 == 0) {
+                    MainActivity.addExportLog("📊 로그 수집 중... $lineCount 라인 처리됨")
+                }
+                
+                line?.let { logLine ->
+                    // HttpSpanExporter와 WebView 브리지 관련 로그 필터링
+                    if (logLine.contains("HttpSpanExporter") || 
+                        logLine.contains("실제 전송 데이터") || 
+                        logLine.contains("전송 span 개수") ||
+                        logLine.contains("JSON payload") ||
+                        logLine.contains("export") ||
+                        logLine.contains("POST") ||
+                        logLine.contains("trace_id") ||
+                        logLine.contains("span_id") ||
+                        // WebView 브리지 함수 호출 로그
+                        logLine.contains("🔥") ||
+                        logLine.contains("Bridge") ||
+                        logLine.contains("generateUUID") ||
+                        logLine.contains("pageLoad") ||
+                        logLine.contains("webVitals") ||
+                        logLine.contains("whatap_bridge") ||
+                        logLine.contains("WhatapWebviewBridge")) {
+                        
+                        // 로그에서 태그와 메시지 부분만 추출
+                        val cleanLog = logLine.substringAfter(": ").take(100) // 100자로 제한
+                        MainActivity.addExportLog("🔴 $cleanLog")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            MainActivity.addExportLog("❌ 로그 수집 오류: ${e.message}")
+        }
+    }.start()
+    
+    // 정기적으로 테스트 로그 추가 (개발용)
+    Thread {
+        var count = 0
+        while (true) {
+            Thread.sleep(15000) // 15초마다
+            MainActivity.addExportLog("⏰ 데이터 수집 대기 중... ${++count}")
+        }
+    }.start()
 }
