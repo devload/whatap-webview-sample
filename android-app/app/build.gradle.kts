@@ -97,8 +97,8 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
-    // 🎯 네트워크 모듈 포함된 완전한 AAR 사용
-    implementation(files("lib/whatap-agent-bom-complete.aar"))
+    // 🎯 lifecycle_state가 추가된 AAR 사용
+    implementation(files("lib/whatap-agent-bom-lifecycle.aar"))
     
     // 필수 의존성
     implementation("androidx.core:core:1.10.1")

@@ -39,23 +39,56 @@ class TestFragment : Fragment() {
         // 프로그래매틱하게 레이아웃 생성
         val layout = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 32)
+            setPadding(16, 16, 16, 16)
         }
         
-        // 제목 텍스트
-        val title = TextView(requireContext()).apply {
-            text = "Fragment 내 WebView 테스트"
-            textSize = 18f
-            setPadding(0, 0, 0, 32)
+        // URL 입력 필드와 Go 버튼
+        val urlLayout = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
-        layout.addView(title)
+        
+        val urlEditText = android.widget.EditText(requireContext()).apply {
+            setText("http://192.168.1.6:18000/")
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            )
+            textSize = 12f
+            setSingleLine(true)
+        }
+        urlLayout.addView(urlEditText)
+        
+        // WebView 변수 먼저 선언
+        lateinit var webView: WebView
+        
+        val goButton = Button(requireContext()).apply {
+            text = "Go"
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            setOnClickListener {
+                val url = urlEditText.text.toString()
+                if (url.startsWith("http")) {
+                    webView.loadUrl(url)
+                    Log.i(TAG, "🌐 URL 변경: $url")
+                }
+            }
+        }
+        urlLayout.addView(goButton)
+        layout.addView(urlLayout)
         
         // WebView 생성
-        val webView = WebView(requireContext()).apply {
+        webView = WebView(requireContext()).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
-                1f // weight
+                0.55f // 55% 비율 (MainActivity와 동일)
             )
             
             settings.javaScriptEnabled = true
@@ -99,9 +132,51 @@ class TestFragment : Fragment() {
             // 🔥 JavaScript Bridge 설정 추가 (이미 위에서 생성됨)
             bridge.startDataUploadTimer()
             
-            loadUrl("https://www.google.com")
+            loadUrl("http://192.168.1.6:18000/")
         }
         layout.addView(webView)
+        
+        // Export 로그 영역 추가
+        val logScrollView = android.widget.ScrollView(requireContext()).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                0.45f // 45% 비율 (MainActivity와 동일)
+            )
+            setBackgroundColor(android.graphics.Color.BLACK)
+        }
+        
+        val logTextView = TextView(requireContext()).apply {
+            text = "📡 Export Log\n대기 중...\n"
+            textSize = 8f
+            setTextColor(android.graphics.Color.parseColor("#00FF00"))
+            setPadding(8, 8, 8, 8)
+            typeface = android.graphics.Typeface.MONOSPACE
+        }
+        logScrollView.addView(logTextView)
+        layout.addView(logScrollView)
+        
+        // 로그 업데이트 스레드
+        Thread {
+            var count = 0
+            while (isAdded) {
+                Thread.sleep(3000)
+                activity?.runOnUiThread {
+                    val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
+                    val newLog = "[$timestamp] Fragment WebView 이벤트 #${++count}\n"
+                    logTextView.append(newLog)
+                    // 스크롤 맨 아래로
+                    logScrollView.fullScroll(View.FOCUS_DOWN)
+                    
+                    // 100줄 이상이면 오래된 로그 제거
+                    val lines = logTextView.text.split("\n")
+                    if (lines.size > 100) {
+                        val recentLines = lines.takeLast(100)
+                        logTextView.text = recentLines.joinToString("\n")
+                    }
+                }
+            }
+        }.start()
         
         // 닫기 버튼
         val closeButton = Button(requireContext()).apply {
@@ -119,7 +194,17 @@ class TestFragment : Fragment() {
                 } catch (e: Exception) {
                     Log.e(TAG, "❌ Fragment 종료 시 작업 정리 실패: ${e.message}")
                 }
-                parentFragmentManager.popBackStack()
+                
+                // Fragment 컨테이너에서 숨기기 (MainActivity의 isFragmentVisible을 false로)
+                activity?.let { mainActivity ->
+                    if (mainActivity is io.whatap.webview.sample.MainActivity) {
+                        // MainActivity의 Fragment 상태를 false로 변경하는 방법이 필요
+                        // 임시적으로 Fragment Manager를 통해 제거
+                        parentFragmentManager.beginTransaction()
+                            .remove(this@TestFragment)
+                            .commit()
+                    }
+                }
             }
         }
         layout.addView(closeButton)

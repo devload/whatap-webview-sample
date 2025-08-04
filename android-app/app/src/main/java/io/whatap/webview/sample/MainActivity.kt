@@ -21,6 +21,7 @@ import io.whatap.android.agent.webview.WhatapWebviewBridge
 import io.whatap.webview.sample.ui.theme.WebviewTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import androidx.compose.runtime.LaunchedEffect
 import android.util.Log
 import io.whatap.android.agent.instrumentation.screengroup.ScreenGroupManager
@@ -52,6 +53,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.height
+import android.content.Intent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
 
 class MainActivity : FragmentActivity() {
     companion object {
@@ -59,6 +63,12 @@ class MainActivity : FragmentActivity() {
         val chainView = ChainView() // public으로 변경
         const val RELOAD_INTERVAL_MS = 10000L // 10초
         const val NETWORK_REQUEST_INTERVAL_MS = 5000L // 5초 네트워크 요청 간격
+        
+        // logcat 프로세스 관리 (메모리 누수 방지)
+        @Volatile
+        internal var logcatProcess: Process? = null
+        @Volatile
+        internal var logcatThread: Thread? = null
         
         // 백그라운드 네트워크 요청용 URLs (WhatapAgent 네트워크 수집 테스트)
         val TEST_URLS = listOf(
@@ -82,6 +92,21 @@ class MainActivity : FragmentActivity() {
             val logEntry = "[$timestamp] $message"
             _exportLogs.value = (_exportLogs.value + logEntry).takeLast(100) // 최근 100개로 증가
         }
+        
+        // logcat 프로세스 안전하게 정리
+        fun stopLogCollection() {
+            try {
+                logcatThread?.interrupt()
+                logcatThread = null
+                
+                logcatProcess?.destroyForcibly()
+                logcatProcess = null
+                
+                Log.i(TAG, "✅ logcat 프로세스 정리 완료")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ logcat 프로세스 정리 실패: ${e.message}")
+            }
+        }
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -91,11 +116,26 @@ class MainActivity : FragmentActivity() {
         // QAFileLogger는 Application에서 이미 설정됨
         Log.i(TAG, "📄 QAFileLogger가 Application에서 설정됨")
         
-        // Export 로그 수집 시작
-        startLogCollection()
+        // Intent에서 재시작 여부 확인
+        val isRestart = intent.getBooleanExtra("IS_RESTART", false)
         
-        // 백그라운드 네트워크 요청 시작
-        startBackgroundNetworkRequests()
+        // 첫 실행일 때만 로그 수집과 네트워크 요청 시작
+        if (!isRestart) {
+            // Export 로그 수집 시작
+            startLogCollection()
+            
+            // 백그라운드 네트워크 요청 시작
+            startBackgroundNetworkRequests()
+            
+            Log.i(TAG, "🚀 첫 실행 - 모든 백그라운드 작업 시작")
+            addExportLog("🚀 첫 실행 - 백그라운드 작업 시작")
+        } else {
+            Log.i(TAG, "🔄 재시작된 Activity - 백그라운드 작업 스킵")
+            addExportLog("🔄 재시작된 Activity")
+        }
+        
+        // 10초마다 Activity 재시작
+        startActivityRestart()
         
         // 테스트용 초기 로그 추가
         addExportLog("🚀 WhatapAgent 모니터링 시작")
@@ -156,7 +196,9 @@ class MainActivity : FragmentActivity() {
                         // 컴팩트한 레이아웃: 높이와 패딩 축소
                         ServerUrlEditor()
                         FragmentTestButton()
-                        WebViewWithUrlController(initialUrl = urlFromIntent)
+                        
+                        // Fragment 영역 (WebView를 포함) - 전체 영역 사용
+                        FragmentContainer(modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -166,12 +208,47 @@ class MainActivity : FragmentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         Log.i(TAG, "🛑 MainActivity 종료")
+        
+        // logcat 프로세스 정리 (메모리 누수 방지)
+        val isRestart = intent.getBooleanExtra("IS_RESTART", false)
+        if (!isRestart) {
+            // 마지막 Activity 종료 시에만 정리
+            stopLogCollection()
+        }
+        
         // 실제 ScreenGroup 정리
         try {
             chainView.endTask("main-activity")
             Log.i(TAG, "✅ 실제 ScreenGroup 정리 완료")
         } catch (e: Exception) {
             Log.d(TAG, "MainActivity 작업 이미 종료됨: ${e.message}")
+        }
+    }
+    
+    /**
+     * 10초마다 Activity 재시작
+     */
+    private fun startActivityRestart() {
+        lifecycleScope.launch(Dispatchers.IO) { // IO 스레드에서 실행
+            // 10초 대기 후 Activity 재시작
+            delay(10000L)
+            
+            Log.i(TAG, "🔄 Activity 재시작 (10초 타이머)")
+            
+            withContext(Dispatchers.Main) { // UI 작업은 메인 스레드에서
+                addExportLog("🔄 Activity 재시작 중...")
+                
+                // 새로운 MainActivity 시작 (IS_RESTART 플래그 추가)
+                val intent = Intent(this@MainActivity, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    putExtra("URL", "http://192.168.1.6:18000/")
+                    putExtra("IS_RESTART", true)  // 재시작 플래그
+                }
+                startActivity(intent)
+                
+                // 현재 Activity 종료
+                finish()
+            }
         }
     }
     
@@ -211,15 +288,12 @@ fun FragmentTestButton() {
             try {
                 // Activity → Fragment Chain 연결
                 MainActivity.chainView.startChain("ActivityFragmentChain", "act-frag-${System.currentTimeMillis()}")
-                MainActivity.chainView.endTask("main-activity")
+                MainActivity.chainView.endTask("MainActivity-main-activity")  // 🔧 수정: 정확한 Task ID 사용
                 MainActivity.chainView.startTask("TestFragment", "fragment-transition")
                 
-                context.supportFragmentManager.beginTransaction()
-                    .replace(android.R.id.content, TestFragment())
-                    .addToBackStack("TestFragment")
-                    .commit()
-                    
-                Log.i("WebViewSample", "✅ Activity → Fragment Chain 연결 및 Fragment 실행 성공")
+                // Fragment는 항상 표시됨 - 이제 Fragment 내부 상태만 변경
+                Log.i("WebViewSample", "✅ Activity → Fragment Chain 연결 성공")
+                Toast.makeText(context, "Fragment WebView 테스트 시작", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Log.e("WebViewSample", "❌ Fragment 실행 실패: ${e.message}")
                 Toast.makeText(context, "Fragment 실행 실패: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -230,7 +304,7 @@ fun FragmentTestButton() {
             .padding(horizontal = 8.dp, vertical = 2.dp)
             .height(32.dp)
     ) {
-        Text("Fragment", fontSize = 11.sp)
+        Text("Fragment Test", fontSize = 11.sp)
     }
 }
 
@@ -268,197 +342,21 @@ fun ServerUrlEditor() {
     }
 }
 
-@Composable
-fun WebViewWithUrlController(initialUrl: String) {
-    val context = LocalContext.current
-    var urlState by remember { mutableStateOf(TextFieldValue(initialUrl)) }
-    val webViewRef = remember { mutableStateOf<WebView?>(null) }
-    val exportLogs by MainActivity.exportLogs.collectAsState()
-    val listState = rememberLazyListState()
-    
-    // 새 로그가 추가될 때마다 스크롤을 맨 아래로
-    LaunchedEffect(exportLogs.size) {
-        if (exportLogs.isNotEmpty()) {
-            listState.animateScrollToItem(exportLogs.size - 1)
-        }
-    }
-    
-    // 10초마다 자동 리로드
-    LaunchedEffect(webViewRef.value) {
-        webViewRef.value?.let {
-            while (true) {
-                delay(MainActivity.RELOAD_INTERVAL_MS)
-                Log.i("WebViewSample", "🔄 자동 리로드 실행 (10초 간격)")
-                it.reload()
-            }
-        }
-    }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        AndroidView(
-            modifier = Modifier.weight(0.55f), // WebView 비율을 55%로 설정
-            factory = { ctx ->
-                WebView(ctx).apply {
-                    settings.javaScriptEnabled = true
-
-                    val bridge = WhatapWebviewBridge(ctx)
-                    bridge.configureWebView(this)
-                    bridge.startDataUploadTimer()
-                    
-                    // 🔥 핵심 수정: WhatapWebViewClient 사용 (최신 빌드 버전)
-                    webViewClient = object : WhatapWebViewClient(bridge) {
-                        override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                            super.onPageStarted(view, url, favicon)
-                            url?.let {
-                                Log.i("WebViewSample", "🌐 WebView 페이지 로드 시작: $it")
-                                try {
-                                    // 실제 WebView Chain 시작
-                                    MainActivity.chainView.startChain("WebLoadChain", "web-chain-${it.hashCode()}")
-                                    MainActivity.chainView.endTask("main-activity")
-                                    MainActivity.chainView.startTask(it, "webview-${it.hashCode()}")
-                                    Log.i("WebViewSample", "✅ 실제 ScreenGroup WebView Chain 시작: $it")
-                                } catch (e: Exception) {
-                                    Log.e("WebViewSample", "❌ WebView Chain 시작 실패: ${e.message}")
-                                }
-                            }
-                        }
-                        
-                        override fun onPageFinished(view: WebView?, url: String?) {
-                            super.onPageFinished(view, url)
-                            url?.let {
-                                Log.i("WebViewSample", "✅ WebView 페이지 로드 완료: $it")
-                                try {
-                                    // 실제 WebView Chain 종료
-                                    MainActivity.chainView.endChain("web-chain-${it.hashCode()}")
-                                    Log.i("WebViewSample", "✅ 실제 ScreenGroup WebView Chain 종료: $it")
-                                } catch (e: Exception) {
-                                    Log.e("WebViewSample", "❌ WebView Chain 종료 실패: ${e.message}")
-                                }
-                                Toast.makeText(ctx, "페이지 로드 완료: $it", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                        
-                        override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
-                            super.doUpdateVisitedHistory(view, url, isReload)
-                            if (!isReload && url != null) {
-                                Log.i("WebViewSample", "🔄 WebView 내부 네비게이션: $url")
-                                try {
-                                    // 실제 페이지 네비게이션 Chain
-                                    view?.url?.let { currentUrl ->
-                                        if (currentUrl != url) {
-                                            MainActivity.chainView.endTask("webview-${currentUrl.hashCode()}")
-                                            MainActivity.chainView.startChain("NavigationChain", "nav-chain-${url.hashCode()}")
-                                            MainActivity.chainView.startTask(url, "webview-${url.hashCode()}")
-                                            MainActivity.chainView.endChain("nav-chain-${url.hashCode()}")
-                                            Log.i("WebViewSample", "✅ 실제 페이지 네비게이션: $currentUrl → $url")
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e("WebViewSample", "❌ 네비게이션 Chain 실패: ${e.message}")
-                                }
-                            }
-                        }
-                    }
-
-                    // 🌐 기존 localhost:18000 서버로 로드 (IP는 동적으로 설정)
-                    loadUrl(initialUrl)
-                    webViewRef.value = this
-                }
-            }
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            OutlinedTextField(
-                modifier = Modifier.weight(1f),
-                value = urlState,
-                onValueChange = { urlState = it },
-                placeholder = { Text("Enter URL", fontSize = 11.sp) },
-                singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
-            )
-            Button(
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-                onClick = {
-                val urlToLoad = urlState.text
-                if (urlToLoad.startsWith("http")) {
-                    webViewRef.value?.loadUrl(urlToLoad)
-                } else {
-                    Toast.makeText(context, "유효한 URL이 아닙니다.", Toast.LENGTH_SHORT).show()
-                }
-            }) {
-                Text("Go", fontSize = 10.sp)
-            }
-        }
-        
-        // Export 로그 표시 영역
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(0.45f) // 나머지 45%를 로그 영역으로 사용
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.Black),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(4.dp)
-            ) {
-                Text(
-                    text = "📡 Export Log",
-                    color = Color.Green,
-                    fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.padding(bottom = 2.dp)
-                )
-                
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(exportLogs) { log ->
-                        Text(
-                            text = log,
-                            color = Color.White,
-                            fontSize = 8.sp, // 로그 텍스트 크기 축소
-                            fontFamily = FontFamily.Monospace,
-                            lineHeight = 10.sp,
-                            modifier = Modifier.padding(vertical = 0.dp) // 줄 간격 제거
-                        )
-                    }
-                    
-                    // 로그가 없을 때 안내 메시지
-                    if (exportLogs.isEmpty()) {
-                        item {
-                            Text(
-                                text = "대기 중... Export 로그와 WebView 브리지 로그가 여기에 표시됩니다.",
-                                color = Color.Gray,
-                                fontSize = 8.sp, // 안내 메시지 크기 축소
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+// WebViewWithUrlController 함수 제거됨 - Fragment 내부에서 WebView 처리
 
 /**
  * 백그라운드 HTTP 네트워크 요청 시작
  */
 private fun MainActivity.startBackgroundNetworkRequests() {
-    lifecycleScope.launch {
+    lifecycleScope.launch(Dispatchers.IO) { // IO 디스패처 사용
         var requestCount = 0
         
-        while (true) {
+        while (isActive) { // isActive로 코루틴 상태 체크
             try {
                 delay(MainActivity.NETWORK_REQUEST_INTERVAL_MS)
+                
+                // 코루틴이 취소되었는지 확인
+                if (!isActive) break
                 
                 val urlToRequest = MainActivity.TEST_URLS[requestCount % MainActivity.TEST_URLS.size]
                 requestCount++
@@ -466,16 +364,39 @@ private fun MainActivity.startBackgroundNetworkRequests() {
                 Log.i(MainActivity.TAG, "🔗 백그라운드 HTTP 요청 #$requestCount: $urlToRequest")
                 MainActivity.addExportLog("🔗 HTTP 요청 #$requestCount: ${urlToRequest.substringAfter("//").substringBefore("/")}")
                 
-                val response = makeHttpRequest(urlToRequest)
+                // 네트워크 요청 실행
+                try {
+                    val response = makeHttpRequest(urlToRequest)
+                    Log.i(MainActivity.TAG, "✅ HTTP 응답 #$requestCount: ${response.substring(0, minOf(100, response.length))}...")
+                    MainActivity.addExportLog("✅ HTTP 응답 #$requestCount 수신 (${response.length} bytes)")
+                } catch (e: java.util.concurrent.CancellationException) {
+                    // 코루틴 취소는 정상 동작이므로 무시
+                    Log.d(MainActivity.TAG, "⏸️ 백그라운드 HTTP 요청 취소됨")
+                    break
+                } catch (e: Exception) {
+                    // Job was cancelled 에러는 무시
+                    if (e.message?.contains("Job was cancelled") == true || 
+                        e.message?.contains("cancelled", ignoreCase = true) == true) {
+                        Log.d(MainActivity.TAG, "⏸️ 백그라운드 작업 종료")
+                        break
+                    }
+                    Log.e(MainActivity.TAG, "❌ 백그라운드 HTTP 요청 실패: ${e.message}")
+                    MainActivity.addExportLog("❌ HTTP 요청 실패: ${e.message?.take(30)}")
+                }
                 
-                Log.i(MainActivity.TAG, "✅ HTTP 응답 #$requestCount: ${response.substring(0, minOf(100, response.length))}...")
-                MainActivity.addExportLog("✅ HTTP 응답 #$requestCount 수신 (${response.length} bytes)")
-                
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // 코루틴 취소는 정상 동작
+                Log.d(MainActivity.TAG, "⏸️ 백그라운드 작업 정상 종료")
+                break
             } catch (e: Exception) {
-                Log.e(MainActivity.TAG, "❌ 백그라운드 HTTP 요청 실패: ${e.message}")
-                MainActivity.addExportLog("❌ HTTP 요청 실패: ${e.message}")
+                // Job was cancelled 에러는 로그에 표시하지 않음
+                if (!e.message.orEmpty().contains("cancelled", ignoreCase = true)) {
+                    Log.e(MainActivity.TAG, "❌ 백그라운드 오류: ${e.message}")
+                }
             }
         }
+        
+        Log.i(MainActivity.TAG, "🛑 백그라운드 HTTP 요청 루프 종료")
     }
 }
 
@@ -509,74 +430,122 @@ suspend fun makeHttpRequest(urlString: String): String = withContext(Dispatchers
 }
 
 /**
- * logcat을 통해 export 로그 수집
+ * logcat을 통해 export 로그 수집 (안전한 프로세스 관리)
  */
 private fun MainActivity.startLogCollection() {
+    // 이미 실행 중인 프로세스가 있으면 정리
+    MainActivity.stopLogCollection()
+    
     // 디버깅: 로그 수집 시작 알림
     MainActivity.addExportLog("🔍 로그 수집 시스템 시작...")
     
-    Thread {
+    val thread = Thread {
+        var process: Process? = null
         try {
             // WebView 브리지 로그와 HttpSpanExporter 로그 수집
-            val process = Runtime.getRuntime().exec("logcat -v brief")
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            process = Runtime.getRuntime().exec("logcat -v brief")
+            MainActivity.logcatProcess = process
+            val reader = BufferedReader(InputStreamReader(process?.inputStream))
             
             MainActivity.addExportLog("✅ logcat 실행 성공")
             
             var line: String?
             var lineCount = 0
-            while (reader.readLine().also { line = it } != null) {
-                lineCount++
-                
-                // 디버깅: 100번째 라인마다 알림 
-                if (lineCount % 100 == 0) {
-                    MainActivity.addExportLog("📊 로그 수집 중... $lineCount 라인 처리됨")
-                }
-                
-                line?.let { logLine ->
-                    // HttpSpanExporter, WebView 브리지, 네트워크 관련 로그 필터링
-                    if (logLine.contains("HttpSpanExporter") || 
-                        logLine.contains("실제 전송 데이터") || 
-                        logLine.contains("전송 span 개수") ||
-                        logLine.contains("JSON payload") ||
-                        logLine.contains("export") ||
-                        logLine.contains("POST") ||
-                        logLine.contains("trace_id") ||
-                        logLine.contains("span_id") ||
-                        // WebView 브리지 함수 호출 로그
-                        logLine.contains("🔥") ||
-                        logLine.contains("Bridge") ||
-                        logLine.contains("generateUUID") ||
-                        logLine.contains("pageLoad") ||
-                        logLine.contains("webVitals") ||
-                        logLine.contains("whatap_bridge") ||
-                        logLine.contains("WhatapWebviewBridge") ||
-                        // 네트워크 instrumentation 로그
-                        logLine.contains("OkHttp") ||
-                        logLine.contains("okhttp") ||
-                        logLine.contains("HttpLog") ||
-                        logLine.contains("NetworkTrace") ||
-                        logLine.contains("BackgroundRequest") ||
-                        logLine.contains("httpbin.org") ||
-                        logLine.contains("jsonplaceholder")) {
-                        
-                        // 로그에서 태그와 메시지 부분만 추출
-                        val cleanLog = logLine.substringAfter(": ").take(100) // 100자로 제한
-                        MainActivity.addExportLog("🔴 $cleanLog")
+            while (!Thread.currentThread().isInterrupted) {
+                try {
+                    line = reader.readLine()
+                    if (line == null) break
+                    
+                    lineCount++
+                    
+                    // 디버깅: 500번째 라인마다만 알림 (빈도 감소)
+                    if (lineCount % 500 == 0) {
+                        MainActivity.addExportLog("📊 로그 수집 중... $lineCount")
                     }
+                    
+                    // 너무 많은 로그 필터링으로 인한 부하 감소
+                    if (lineCount % 10 == 0) { // 10개 중 1개만 검사
+                        line?.let { logLine ->
+                            // 주요 로그만 필터링 (조건 단순화)
+                            if (logLine.contains("HttpSpanExporter") || 
+                                logLine.contains("chain-group") ||
+                                logLine.contains("screen-group") ||
+                                logLine.contains("Created") ||
+                                logLine.contains("Fragment")) {
+                                
+                                // 로그에서 태그와 메시지 부분만 추출
+                                val cleanLog = logLine.substringAfter(": ").take(50) // 50자로 제한
+                                MainActivity.addExportLog("🔴 $cleanLog")
+                            }
+                        }
+                    }
+                    
+                    // CPU 부하 감소를 위한 짧은 대기
+                    Thread.sleep(1)
+                    
+                } catch (e: InterruptedException) {
+                    break // 스레드 인터럽트 시 즉시 종료
+                } catch (e: Exception) {
+                    // 개별 라인 오류는 무시하고 계속
                 }
             }
         } catch (e: Exception) {
             MainActivity.addExportLog("❌ 로그 수집 오류: ${e.message}")
+        } finally {
+            // 프로세스 정리
+            process?.destroy()
+            MainActivity.logcatProcess = null
         }
-    }.start()
+    }
+    MainActivity.logcatThread = thread
+    thread.start()
     
-    // 정기적으로 테스트 로그 추가 (개발용)
+    // 정기적으로 테스트 로그 추가 (개발용) - 첫 실행에만
     Thread {
         var count = 0
-        while (true) {
-            Thread.sleep(15000) // 15초마다
-            MainActivity.addExportLog("⏰ 데이터 수집 대기 중... ${++count}")
+        while (!Thread.currentThread().isInterrupted) {
+            try {
+                Thread.sleep(15000) // 15초마다
+                MainActivity.addExportLog("⏰ 데이터 수집 대기 중... ${++count}")
+            } catch (e: InterruptedException) {
+                // 스레드 인터럽트 시 종료
+                break
+            }
         }
     }.start()
+}
+
+// Fragment 표시를 위한 상태 관리
+private val isFragmentVisible = mutableStateOf(false)
+private var fragmentContainer: android.widget.FrameLayout? = null
+private var fragmentContainerId: Int = 0
+
+@Composable 
+fun FragmentContainer(modifier: Modifier = Modifier) {
+    val context = LocalActivity.current as FragmentActivity
+    
+    AndroidView(
+        modifier = modifier.fillMaxSize(),
+        factory = { ctx ->
+            // Fragment를 위한 컨테이너 생성
+            fragmentContainer = android.widget.FrameLayout(ctx).apply {
+                id = android.view.View.generateViewId()
+                setBackgroundColor(android.graphics.Color.parseColor("#F5F5F5"))
+            }
+            fragmentContainerId = fragmentContainer!!.id
+            
+            // 초기 상태: Fragment를 지연 실행으로 표시
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                try {
+                    context.supportFragmentManager.beginTransaction()
+                        .replace(fragmentContainerId, TestFragment())
+                        .commit()
+                } catch (e: Exception) {
+                    android.util.Log.e("WebViewSample", "Fragment 추가 실패: ${e.message}")
+                }
+            }
+            
+            fragmentContainer!!
+        }
+    )
 }
