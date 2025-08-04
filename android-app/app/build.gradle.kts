@@ -2,6 +2,9 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    
+    // TODO: WhatapAgent Gradle Plugin - 플러그인 저장소 확인 필요
+    // id("io.whatap.android.agent") version "2.8.2"
 }
 
 android {
@@ -57,7 +60,9 @@ dependencies {
     implementation(libs.androidx.material3)
 
     implementation ("org.mozilla:rhino:1.7.14")
-
+    
+    // 🌐 OkHttp for network instrumentation
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

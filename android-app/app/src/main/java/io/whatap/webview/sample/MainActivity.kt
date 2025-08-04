@@ -28,8 +28,9 @@ import io.whatap.android.agent.instrumentation.screengroup.ChainView
 import io.whatap.android.agent.instrumentation.userlog.UserLogger
 import android.os.Handler
 import android.os.Looper
-import java.net.HttpURLConnection
-import java.net.URL
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import kotlinx.coroutines.Dispatchers
@@ -57,13 +58,16 @@ class MainActivity : FragmentActivity() {
         const val RELOAD_INTERVAL_MS = 10000L // 10초
         const val NETWORK_REQUEST_INTERVAL_MS = 5000L // 5초 네트워크 요청 간격
         
-        // 백그라운드 네트워크 요청용 URLs
+        // 백그라운드 네트워크 요청용 URLs (WhatapAgent 네트워크 수집 테스트)
         val TEST_URLS = listOf(
-            "https://httpbin.org/get",
-            "https://jsonplaceholder.typicode.com/posts/1",
-            "https://api.github.com/zen",
-            "https://httpbin.org/uuid",
-            "https://httpbin.org/delay/1"
+            "https://httpbin.org/get",                           // GET 요청 테스트
+            "https://jsonplaceholder.typicode.com/posts/1",      // JSON API 테스트  
+            "https://api.github.com/zen",                        // GitHub API 테스트
+            "https://httpbin.org/uuid",                          // UUID 생성 테스트
+            "https://httpbin.org/delay/2",                       // 지연 응답 테스트 (2초)
+            "https://httpbin.org/status/200",                    // 정상 응답 테스트
+            "https://httpbin.org/status/404",                    // 에러 응답 테스트
+            "https://jsonplaceholder.typicode.com/users/1"       // 사용자 정보 API 테스트
         )
         
         // Export 로그를 위한 StateFlow
@@ -465,42 +469,31 @@ private fun MainActivity.startBackgroundNetworkRequests() {
 }
 
 /**
- * HTTP 요청 실행
+ * OkHttp를 사용한 HTTP 요청 실행 (WhatapAgent 네트워크 수집을 위함)
  */
 suspend fun makeHttpRequest(urlString: String): String = withContext(Dispatchers.IO) {
-    var connection: HttpURLConnection? = null
+    val client = OkHttpClient.Builder()
+        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
+    
+    val request = Request.Builder()
+        .url(urlString)
+        .addHeader("User-Agent", "WhatapAgent-Android-WebView-Sample/1.0")
+        .addHeader("X-Test-Source", "BackgroundRequest")
+        .build()
+    
+    var response: Response? = null
     try {
-        val url = URL(urlString)
-        connection = url.openConnection() as HttpURLConnection
-        connection.requestMethod = "GET"
-        connection.connectTimeout = 10000
-        connection.readTimeout = 10000
-        connection.setRequestProperty("User-Agent", "WhatapAgent-Android-WebView-Sample/1.0")
+        response = client.newCall(request).execute()
+        val responseBody = response.body?.string() ?: ""
         
-        val responseCode = connection.responseCode
-        
-        val inputStream = if (responseCode == HttpURLConnection.HTTP_OK) {
-            connection.inputStream
-        } else {
-            connection.errorStream
-        }
-        
-        val reader = BufferedReader(InputStreamReader(inputStream))
-        val response = StringBuilder()
-        var line: String?
-        
-        while (reader.readLine().also { line = it } != null) {
-            response.append(line).append("\n")
-        }
-        
-        reader.close()
-        
-        "HTTP $responseCode: ${response.toString()}"
+        "HTTP ${response.code}: ${responseBody.take(200)}..." // 200자로 제한
         
     } catch (e: Exception) {
-        throw e
+        "Error: ${e.message}"
     } finally {
-        connection?.disconnect()
+        response?.close()
     }
 }
 
@@ -530,7 +523,7 @@ private fun MainActivity.startLogCollection() {
                 }
                 
                 line?.let { logLine ->
-                    // HttpSpanExporter와 WebView 브리지 관련 로그 필터링
+                    // HttpSpanExporter, WebView 브리지, 네트워크 관련 로그 필터링
                     if (logLine.contains("HttpSpanExporter") || 
                         logLine.contains("실제 전송 데이터") || 
                         logLine.contains("전송 span 개수") ||
@@ -546,7 +539,15 @@ private fun MainActivity.startLogCollection() {
                         logLine.contains("pageLoad") ||
                         logLine.contains("webVitals") ||
                         logLine.contains("whatap_bridge") ||
-                        logLine.contains("WhatapWebviewBridge")) {
+                        logLine.contains("WhatapWebviewBridge") ||
+                        // 네트워크 instrumentation 로그
+                        logLine.contains("OkHttp") ||
+                        logLine.contains("okhttp") ||
+                        logLine.contains("HttpLog") ||
+                        logLine.contains("NetworkTrace") ||
+                        logLine.contains("BackgroundRequest") ||
+                        logLine.contains("httpbin.org") ||
+                        logLine.contains("jsonplaceholder")) {
                         
                         // 로그에서 태그와 메시지 부분만 추출
                         val cleanLog = logLine.substringAfter(": ").take(100) // 100자로 제한
