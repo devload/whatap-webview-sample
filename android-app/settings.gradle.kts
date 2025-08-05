@@ -4,7 +4,7 @@ pluginManagement {
         mavenLocal()
         // 🎯 Local JAR file for WhatapAgent plugin
         flatDir {
-            dirs("app/lib")
+            dirs("libs")
         }
         google {
             content {
@@ -15,6 +15,13 @@ pluginManagement {
         }
         mavenCentral()
         gradlePluginPortal()
+    }
+    resolutionStrategy {
+        eachPlugin {
+            if (requested.id.id == "io.whatap.plugin") {
+                useModule("io.whatap:WhatapAndroidPlugin:${requested.version}")
+            }
+        }
     }
 }
 dependencyResolutionManagement {

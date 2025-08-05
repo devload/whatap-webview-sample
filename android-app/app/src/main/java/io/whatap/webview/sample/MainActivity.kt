@@ -90,7 +90,12 @@ class MainActivity : FragmentActivity() {
         fun addExportLog(message: String) {
             val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
             val logEntry = "[$timestamp] $message"
-            _exportLogs.value = (_exportLogs.value + logEntry).takeLast(100) // 최근 100개로 증가
+            
+            // LogRepository에 저장
+            LogRepository.addLog(logEntry)
+            
+            // StateFlow 업데이트
+            _exportLogs.value = LogRepository.getAllLogs()
         }
         
         // logcat 프로세스 안전하게 정리
@@ -115,6 +120,9 @@ class MainActivity : FragmentActivity() {
 
         // QAFileLogger는 Application에서 이미 설정됨
         Log.i(TAG, "📄 QAFileLogger가 Application에서 설정됨")
+        
+        // 기존 로그 복원
+        _exportLogs.value = LogRepository.getAllLogs()
         
         // Intent에서 재시작 여부 확인
         val isRestart = intent.getBooleanExtra("IS_RESTART", false)
@@ -195,7 +203,6 @@ class MainActivity : FragmentActivity() {
                     Column(modifier = Modifier.padding(innerPadding)) {
                         // 컴팩트한 레이아웃: 높이와 패딩 축소
                         ServerUrlEditor()
-                        FragmentTestButton()
                         
                         // Fragment 영역 (WebView를 포함) - 전체 영역 사용
                         FragmentContainer(modifier = Modifier.weight(1f))
@@ -255,58 +262,6 @@ class MainActivity : FragmentActivity() {
 }
 
 
-@Composable
-fun FragmentTestButton() {
-    val context = LocalActivity.current as FragmentActivity
-    
-    Button(
-        onClick = {
-            Log.i("WebViewSample", "🔄 Fragment 테스트 버튼 클릭 - Activity → Fragment Chain 시작")
-            
-            // UserLogger API를 사용한 커스텀 로그
-            try {
-                // 간단한 문자열 로그
-                UserLogger.print("Fragment test button clicked")
-                
-                // 구조화된 로그 데이터
-                val logData = HashMap<Any, Any>()
-                logData["event_type"] = "user_action"
-                logData["action"] = "fragment_navigation"
-                logData["button_id"] = "fragment_test_button"
-                logData["screen_name"] = "MainActivity"
-                logData["user_id"] = "test_user_123"
-                logData["timestamp"] = System.currentTimeMillis()
-                logData["device_model"] = android.os.Build.MODEL
-                logData["os_version"] = android.os.Build.VERSION.RELEASE
-                
-                UserLogger.print(logData)
-                Log.i("WebViewSample", "📝 UserLogger 커스텀 로그 전송 완료")
-            } catch (e: Exception) {
-                Log.e("WebViewSample", "❌ UserLogger 커스텀 로그 전송 실패: ${e.message}")
-            }
-            
-            try {
-                // Activity → Fragment Chain 연결
-                MainActivity.chainView.startChain("ActivityFragmentChain", "act-frag-${System.currentTimeMillis()}")
-                MainActivity.chainView.endTask("MainActivity-main-activity")  // 🔧 수정: 정확한 Task ID 사용
-                MainActivity.chainView.startTask("TestFragment", "fragment-transition")
-                
-                // Fragment는 항상 표시됨 - 이제 Fragment 내부 상태만 변경
-                Log.i("WebViewSample", "✅ Activity → Fragment Chain 연결 성공")
-                Toast.makeText(context, "Fragment WebView 테스트 시작", Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                Log.e("WebViewSample", "❌ Fragment 실행 실패: ${e.message}")
-                Toast.makeText(context, "Fragment 실행 실패: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 2.dp)
-            .height(32.dp)
-    ) {
-        Text("Fragment Test", fontSize = 11.sp)
-    }
-}
 
 @Composable
 fun ServerUrlEditor() {

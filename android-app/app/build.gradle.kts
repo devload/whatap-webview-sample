@@ -8,29 +8,29 @@ plugins {
 }
 
 // 🎯 WhatapAndroidPlugin 설정
-whatap {
-    isEnabled = true
-    
-    fragment {
-        enabled = true
-    }
-    
-    okhttp {
-        enabled = true
-    }
-    
-    httpurlconnection {
-        enabled = true
-    }
-    
-    httpclient {
-        enabled = true
-    }
-    
-    volley {
-        enabled = true
-    }
-}
+// whatap {
+//     isEnabled = true
+//     
+//     fragment {
+//         enabled = true
+//     }
+//     
+//     okhttp {
+//         enabled = true
+//     }
+//     
+//     httpurlconnection {
+//         enabled = true
+//     }
+//     
+//     httpclient {
+//         enabled = true
+//     }
+//     
+//     volley {
+//         enabled = true
+//     }
+// }
 
 android {
     namespace = "io.whatap.webview.sample"
@@ -97,8 +97,8 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
-    // 🎯 lifecycle_state가 추가된 AAR 사용
-    implementation(files("lib/whatap-agent-bom-lifecycle.aar"))
+    // 🎯 업데이트된 AAR 사용
+    implementation(files("lib/whatap-agent-bom-release.aar"))
     
     // 필수 의존성
     implementation("androidx.core:core:1.10.1")
