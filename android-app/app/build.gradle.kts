@@ -45,6 +45,13 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+    
+    compileOptions {
+        // Core library desugaring 활성화
+        isCoreLibraryDesugaringEnabled = true
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
 
     buildTypes {
         release {
@@ -97,8 +104,11 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
-    // 🎯 네트워크 모듈 포함된 완전한 AAR 사용
-    implementation(files("lib/whatap-agent-bom-complete.aar"))
+    // 🎯 최신 BOM AAR 사용 (r_mtid 포함)
+    implementation(files("libs/whatap-agent-bom-debug.aar"))
+    
+    // Core library desugaring (2.1.2 이상 필요)
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
     
     // 필수 의존성
     implementation("androidx.core:core:1.10.1")

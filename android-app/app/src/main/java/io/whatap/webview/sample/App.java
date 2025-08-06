@@ -27,7 +27,7 @@ public class App extends Application {
         }
 
         // 2. WhatapAgent 초기화 (Long hash traceId/spanId 테스트)
-        String serverUrl = "https://rumote.whatap-mobile-agent.io/m";
+        String serverUrl = "http://192.168.1.73:8080/m";
         int pCode = 3447;
         String projectKey = "x43bn212o2cou-z5207095h6tmkj-z3k5tbqb529h1q";
         
@@ -44,6 +44,40 @@ public class App extends Application {
             Log.i(TAG, "🔑 프로젝트 키: " + projectKey.substring(0, 10) + "...");
             Log.i(TAG, "🔢 traceId/spanId 형식: Long 숫자");
             Log.i(TAG, "📊 각 screengroup 이벤트마다 고유한 traceId 사용");
+            
+            // 🔥 ScreenGroupInstrumentation 직접 호출 테스트
+            try {
+                // 1초 후에 ScreenGroupInstrumentation.install() 직접 호출
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(1000); // WhatapAgent 초기화 완료 대기
+                        
+                        Log.i(TAG, "🔍 ScreenGroupInstrumentation 수동 호출 시도...");
+                        
+                        // ScreenGroupInstrumentation.install() 직접 호출
+                        io.whatap.android.agent.instrumentation.screengroup.ScreenGroupInstrumentation screenGroupInst = 
+                            new io.whatap.android.agent.instrumentation.screengroup.ScreenGroupInstrumentation();
+                        
+                        // 임시 TelemetrySdk 생성 (null 체크용)
+                        Log.i(TAG, "✅ ScreenGroupInstrumentation 인스턴스 생성 성공");
+                        
+                        // ScreenGroupManager tracer 상태 확인
+                        io.whatap.android.agent.instrumentation.screengroup.ScreenGroupManager manager = 
+                            io.whatap.android.agent.instrumentation.screengroup.ScreenGroupManager.getInstance();
+                        
+                        Log.i(TAG, "🔍 ScreenGroupManager tracer 상태 확인 중...");
+                        manager.startGroup("TEST_INIT");
+                        Log.i(TAG, "✅ ScreenGroupManager 테스트 호출 완료");
+                        
+                    } catch (Exception e) {
+                        Log.e(TAG, "❌ ScreenGroupInstrumentation 테스트 실패: " + e.getMessage());
+                        e.printStackTrace();
+                    }
+                }).start();
+            } catch (Exception screenGroupError) {
+                Log.e(TAG, "❌ ScreenGroupInstrumentation 테스트 스레드 실패: " + screenGroupError.getMessage());
+            }
+            
         } catch (Exception e) {
             Log.e(TAG, "❌ WhatapAgent 초기화 실패: " + e.getMessage());
         }

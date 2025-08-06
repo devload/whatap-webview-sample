@@ -113,14 +113,13 @@ class MainActivity : FragmentActivity() {
             addExportLog("🔥 [Bridge] 테스트: webVitals() 호출 시뮬레이션")
         }.start()
 
-        // 실제 ScreenGroup 시작
-        Log.i(TAG, "🔄 실제 ScreenGroup 시작: WebViewFlow")
+        // ScreenGroup은 라이브러리에서 자동으로 처리됨 (수동 호출 제거)
+        Log.i(TAG, "ℹ️ ScreenGroup은 라이브러리에서 자동으로 시작됩니다")
         try {
-            ScreenGroupManager.getInstance().startGroup("WebViewFlow")
             chainView.startTask("MainActivity", "main-activity")
-            Log.i(TAG, "✅ 실제 ScreenGroup 및 Chain 시작 성공")
+            Log.i(TAG, "✅ Chain 시작 성공")
         } catch (e: Exception) {
-            Log.e(TAG, "❌ ScreenGroup 시작 실패: ${e.message}")
+            Log.e(TAG, "❌ Chain 시작 실패: ${e.message}")
         }
 
         // UserLogger API 테스트 - onCreate에서 실행
@@ -149,13 +148,35 @@ class MainActivity : FragmentActivity() {
         val defaultUrl = "http://192.168.1.6:18000/"
         val urlFromIntent = intent.getStringExtra("URL") ?: defaultUrl
 
+        // 🔥 자동으로 Fragment 로드 (Activity → Fragment → WebView 구조)
+        Log.i(TAG, "🔄 자동으로 TestFragment 로드 시작")
+        try {
+            // Fragment 인스턴스 생성
+            val testFragment = TestFragment()
+            
+            // Activity → Fragment Chain 연결 (Fragment의 실제 hashCode 사용)
+            chainView.startChain("ActivityFragmentChain", "act-frag-${System.currentTimeMillis()}")
+            chainView.endTask("main-activity")
+            chainView.startTask("TestFragment", "fragment-${testFragment.hashCode()}")
+            
+            supportFragmentManager.beginTransaction()
+                .replace(android.R.id.content, testFragment)
+                .commit()
+                
+            Log.i(TAG, "✅ Activity → Fragment 자동 로드 성공 (fragment-${testFragment.hashCode()})")
+            return // Fragment가 로드되면 Compose UI는 표시하지 않음
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Fragment 자동 로드 실패: ${e.message}")
+            // Fragment 로드 실패 시 기본 Compose UI로 폴백
+        }
+
         setContent {
             WebviewTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Column(modifier = Modifier.padding(innerPadding)) {
                         // 컴팩트한 레이아웃: 높이와 패딩 축소
                         ServerUrlEditor()
-                        FragmentTestButton()
+                        // Fragment 자동 로드를 위해 버튼 제거
                         WebViewWithUrlController(initialUrl = urlFromIntent)
                     }
                 }
@@ -238,7 +259,7 @@ fun FragmentTestButton() {
 fun ServerUrlEditor() {
     val context = LocalContext.current
     val sharedPrefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
-    val defaultUrl = "https://rumote.whatap-mobile-agent.io/m"
+    val defaultUrl = "http://192.168.1.73:8080/m"
     var text by remember {
         mutableStateOf(TextFieldValue(sharedPrefs.getString("server_url", defaultUrl) ?: defaultUrl))
     }
