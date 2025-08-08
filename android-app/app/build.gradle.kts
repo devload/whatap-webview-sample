@@ -95,7 +95,10 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
-    // 🔧 개별 AAR 방식 (안정적) - Event attributes 수정사항 포함
+    // ✅ BOM AAR 방식 (내부 원칙 준수) - 모든 모듈 통합 패키지  
+    compileOnly(files("libs/whatap-agent-bom-complete.aar"))
+    
+    // 🔧 개별 AAR 방식 (호환성) - 빌드 성공 보장  
     implementation(files(
         "libs/api-debug.aar",
         "libs/core-debug.aar", 
@@ -107,7 +110,7 @@ dependencies {
         "libs/common-api-debug.aar",
         "libs/activity-debug.aar",
         "libs/fragment-debug.aar",
-        "libs/screengroup-debug.aar",
+        "libs/screengroup-debug.aar",  // ChainView.getInstance() 포함
         "libs/webview-debug.aar",
         "libs/network-debug.aar",
         "libs/crash-debug.aar",
@@ -115,12 +118,12 @@ dependencies {
         "libs/userlog-debug.aar",
         "libs/stacktrace-debug.aar",
         "libs/extra-debug.aar",
-        "libs/exporter-debug.aar",  // 🎯 수정된 Event attributes 포함
+        "libs/exporter-debug.aar",  // 수정된 Event attributes 포함
         "libs/cpu-debug.aar",
         "libs/memory-debug.aar",
         "libs/temperature-debug.aar",
-        "libs/diskbuffering-debug.aar",  // 🔧 디스크 버퍼링 추가
-        "libs/okhttp-debug.aar",  // 🌐 OkHttp 네트워크 수집
+        "libs/diskbuffering-debug.aar",
+        "libs/okhttp-debug.aar",  // 네트워크 instrumentation 수정사항 포함
         "libs/volley-debug.aar",
         "libs/httpclient-debug.aar",
         "libs/httpurlconnection-debug.aar"
