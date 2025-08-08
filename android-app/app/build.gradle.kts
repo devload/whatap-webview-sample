@@ -96,9 +96,9 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
 
     // ✅ BOM AAR 방식 (내부 원칙 준수) - 모든 모듈 통합 패키지  
-    compileOnly(files("libs/whatap-agent-bom-complete.aar"))
+    // implementation(files("libs/whatap-agent-bom-complete.aar"))  // TODO: BOM에 getInstance() 메서드 누락
     
-    // 🔧 개별 AAR 방식 (호환성) - 빌드 성공 보장  
+    // 🔧 개별 AAR 방식 (호환성) - 빌드 성공 보장
     implementation(files(
         "libs/api-debug.aar",
         "libs/core-debug.aar", 
