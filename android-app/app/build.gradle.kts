@@ -3,7 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     
-    // 🎯 최신 WhatapAndroidPlugin - 제품 필수 구성요소 (비활성화 금지)
+    // 🎯 최신 WhatapAndroidPlugin - Ultra-Safe 구현 적용
     id("io.whatap.plugin") version "1.0.0"
 }
 
@@ -29,13 +29,6 @@ android {
         buildConfigField("String", "WHATAP_PROXY_SERVER", "\"http://192.168.1.73:8080\"")
     }
     
-    compileOptions {
-        // Core library desugaring 활성화
-        isCoreLibraryDesugaringEnabled = true
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -45,7 +38,10 @@ android {
             )
         }
     }
+    
     compileOptions {
+        // Core library desugaring 활성화
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }

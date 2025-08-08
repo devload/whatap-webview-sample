@@ -102,7 +102,7 @@ class TestFragment : Fragment() {
     private fun ServerUrlEditor() {
         val context = LocalContext.current
         val sharedPrefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
-        val defaultUrl = "https://rumote.whatap-mobile-agent.io/m"
+        val defaultUrl = "https://rumote.whatap-mobile-agent.io/m"  // 실제 WhatAp 서버 URL
         var text by remember {
             mutableStateOf(TextFieldValue(sharedPrefs.getString("server_url", defaultUrl) ?: defaultUrl))
         }

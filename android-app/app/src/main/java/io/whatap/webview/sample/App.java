@@ -26,19 +26,19 @@ public class App extends Application {
             Log.w(TAG, "⚠️ WLogger 초기화 실패: " + e.getMessage());
         }
 
-        // 2. WhatapAgent 초기화 (BuildConfig에서 서버 설정 읽기)
-        String serverUrl = BuildConfig.WHATAP_SERVER_URL;
-        int pCode = BuildConfig.WHATAP_PCODE;
-        String projectKey = BuildConfig.WHATAP_PROJECT_KEY;
+        // 2. WhatapAgent 초기화 (실제 WhatAp 서버 사용)
+        String serverUrl = "https://rumote.whatap-mobile-agent.io/m";
+        int pCode = 3447;
+        String projectKey = "x43bn212o2cou-z5207095h6tmkj-z3k5tbqb529h1q";
         
         try {
             WhatapAgent.Builder.newBuilder()
-                    .setServerUrl(serverUrl)
+                    .setServerUrl(serverUrl)  // 실제 WhatAp 서버 사용
                     .setPCode(pCode)
                     .setProjectKey(projectKey)
                     .build(this);
             
-            Log.i(TAG, "🚀 WhatapAgent 초기화 성공 (RUMOTE 서버)");
+            Log.i(TAG, "🚀 WhatapAgent 초기화 성공 (WhatAp 서버)");
             Log.i(TAG, "🌐 서버 URL: " + serverUrl);
             Log.i(TAG, "📊 프로젝트 코드: " + pCode);
             Log.i(TAG, "🔑 프로젝트 키: " + projectKey.substring(0, 10) + "...");
@@ -52,5 +52,8 @@ public class App extends Application {
         } catch (Exception e) {
             Log.e(TAG, "❌ WhatapAgent 초기화 실패: " + e.getMessage());
         }
+
+        // 3. 네트워크 계측은 WhatapAndroidPlugin이 자동 처리
+        Log.i(TAG, "🌐 OkHttp 네트워크 계측은 WhatapAndroidPlugin이 자동 처리됩니다");
     }
 }
