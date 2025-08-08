@@ -22,16 +22,27 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
-        // WhatAp 서버 설정 - 한 곳에서 관리
-        buildConfigField("String", "WHATAP_SERVER_URL", "\"https://rumote.whatap-mobile-agent.io/m\"")
+        // WhatAp 공통 설정
         buildConfigField("int", "WHATAP_PCODE", "3447")
         buildConfigField("String", "WHATAP_PROJECT_KEY", "\"x43bn212o2cou-z5207095h6tmkj-z3k5tbqb529h1q\"")
         buildConfigField("String", "WHATAP_PROXY_SERVER", "\"http://192.168.1.73:8080\"")
     }
     
     buildTypes {
+        debug {
+            // Development variant - 로컬 서버 사용
+            buildConfigField("String", "WHATAP_SERVER_URL", "\"http://192.168.1.73:8080/m\"")
+            buildConfigField("String", "VARIANT_TYPE", "\"dev\"")
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+        }
         release {
+            // Production variant - rumote 서버 사용  
+            buildConfigField("String", "WHATAP_SERVER_URL", "\"https://rumote.whatap-mobile-agent.io/m\"")
+            buildConfigField("String", "VARIANT_TYPE", "\"prod\"")
             isMinifyEnabled = false
+            // debug signing 사용 (테스트용)
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

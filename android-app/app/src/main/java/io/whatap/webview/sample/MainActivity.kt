@@ -71,7 +71,9 @@ class MainActivity : FragmentActivity() {
             "https://httpbin.org/delay/2",                       // 지연 응답 테스트 (2초)
             "https://httpbin.org/status/200",                    // 정상 응답 테스트
             "https://httpbin.org/status/404",                    // 에러 응답 테스트
-            "https://jsonplaceholder.typicode.com/users/1"       // 사용자 정보 API 테스트
+            "https://jsonplaceholder.typicode.com/users/1",      // 사용자 정보 API 테스트
+            "https://nonexistent-domain-12345.com/api",          // 🔴 존재하지 않는 도메인 (DNS 실패)
+            "https://invalid-url-test-987654321.net/data"        // 🔴 무효한 도메인 (서버 응답 없음)
         )
         
         // Export 로그를 위한 StateFlow
@@ -102,6 +104,8 @@ class MainActivity : FragmentActivity() {
         // 테스트용 초기 로그 추가
         addExportLog("🚀 WhatapAgent 모니터링 시작")
         addExportLog("📱 디바이스: ${android.os.Build.MODEL}")
+        addExportLog("🔧 Build Variant: ${BuildConfig.VARIANT_TYPE}")
+        addExportLog("🌐 WhatAp 서버: ${BuildConfig.WHATAP_SERVER_URL}")
         addExportLog("🌐 프록시 서버: ${BuildConfig.WHATAP_PROXY_SERVER}")
         addExportLog("🔗 백그라운드 HTTP 요청 시작 (5초 간격)")
         
@@ -181,7 +185,7 @@ class MainActivity : FragmentActivity() {
 fun ServerUrlEditor() {
     val context = LocalContext.current
     val sharedPrefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
-    val defaultUrl = "https://rumote.whatap-mobile-agent.io/m"  // 실제 WhatAp 서버 URL
+    val defaultUrl = BuildConfig.WHATAP_SERVER_URL  // Build variant에 따른 서버 URL
     var text by remember {
         mutableStateOf(TextFieldValue(sharedPrefs.getString("server_url", defaultUrl) ?: defaultUrl))
     }
@@ -226,16 +230,7 @@ fun WebViewWithUrlController(initialUrl: String) {
         }
     }
     
-    // 10초마다 자동 리로드
-    LaunchedEffect(webViewRef.value) {
-        webViewRef.value?.let {
-            while (true) {
-                delay(MainActivity.RELOAD_INTERVAL_MS)
-                Log.i("WebViewSample", "🔄 자동 리로드 실행 (10초 간격)")
-                it.reload()
-            }
-        }
-    }
+    // 자동 리로드 제거됨 (사용자 요청에 따라)
 
     Column(modifier = Modifier.fillMaxSize()) {
         AndroidView(
