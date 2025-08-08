@@ -23,11 +23,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.LaunchedEffect
 import android.util.Log
-import io.whatap.android.agent.instrumentation.screengroup.ScreenGroupManager
-import io.whatap.android.agent.instrumentation.screengroup.ChainView
 import io.whatap.android.agent.instrumentation.userlog.UserLogger
 import android.os.Handler
 import android.os.Looper
+import io.whatap.android.agent.instrumentation.screengroup.ChainView
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -56,9 +55,12 @@ import androidx.compose.foundation.layout.height
 class MainActivity : FragmentActivity() {
     companion object {
         const val TAG = "WebViewSample"
-        val chainView = ChainView() // public으로 변경
         const val RELOAD_INTERVAL_MS = 10000L // 10초
         const val NETWORK_REQUEST_INTERVAL_MS = 5000L // 5초 네트워크 요청 간격
+        
+        // Activity→Fragment Chain 관리용 변수
+        var activityFragmentChainId: String? = null
+        var activityFragmentChainView: ChainView? = null
         
         // 백그라운드 네트워크 요청용 URLs (WhatapAgent 네트워크 수집 테스트)
         val TEST_URLS = listOf(
@@ -100,7 +102,7 @@ class MainActivity : FragmentActivity() {
         // 테스트용 초기 로그 추가
         addExportLog("🚀 WhatapAgent 모니터링 시작")
         addExportLog("📱 디바이스: ${android.os.Build.MODEL}")
-        addExportLog("🌐 프록시 서버: http://192.168.1.73:8080")
+        addExportLog("🌐 프록시 서버: ${BuildConfig.WHATAP_PROXY_SERVER}")
         addExportLog("🔗 백그라운드 HTTP 요청 시작 (5초 간격)")
         
         // WebView 브리지 로그 테스트
@@ -115,12 +117,6 @@ class MainActivity : FragmentActivity() {
 
         // ScreenGroup은 라이브러리에서 자동으로 처리됨 (수동 호출 제거)
         Log.i(TAG, "ℹ️ ScreenGroup은 라이브러리에서 자동으로 시작됩니다")
-        try {
-            chainView.startTask("MainActivity", "main-activity")
-            Log.i(TAG, "✅ Chain 시작 성공")
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Chain 시작 실패: ${e.message}")
-        }
 
         // UserLogger API 테스트 - onCreate에서 실행
         Log.i(TAG, "📝 UserLogger API 테스트 시작")
@@ -148,118 +144,44 @@ class MainActivity : FragmentActivity() {
         val defaultUrl = "http://192.168.1.6:18000/"
         val urlFromIntent = intent.getStringExtra("URL") ?: defaultUrl
 
-        // 🔥 자동으로 Fragment 로드 (Activity → Fragment → WebView 구조)
-        Log.i(TAG, "🔄 자동으로 TestFragment 로드 시작")
+        // Activity → Fragment → WebView 구조 설정
+        Log.i(TAG, "🔧 Activity → Fragment → WebView 구조 준비 중...")
+        
+        // 🔗 Activity→Fragment Chain 시작
         try {
-            // Fragment 인스턴스 생성
-            val testFragment = TestFragment()
-            
-            // Activity → Fragment Chain 연결 (Fragment의 실제 hashCode 사용)
-            chainView.startChain("ActivityFragmentChain", "act-frag-${System.currentTimeMillis()}")
-            chainView.endTask("main-activity")
-            chainView.startTask("TestFragment", "fragment-${testFragment.hashCode()}")
-            
-            supportFragmentManager.beginTransaction()
-                .replace(android.R.id.content, testFragment)
-                .commit()
-                
-            Log.i(TAG, "✅ Activity → Fragment 자동 로드 성공 (fragment-${testFragment.hashCode()})")
-            return // Fragment가 로드되면 Compose UI는 표시하지 않음
+            activityFragmentChainView = ChainView.getInstance()
+            activityFragmentChainId = "activity-fragment-${System.currentTimeMillis()}"
+            activityFragmentChainView?.startChain("ActivityFragmentChain", activityFragmentChainId!!)
+            Log.i(TAG, "🔗 Activity→Fragment Chain 시작: $activityFragmentChainId")
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Fragment 자동 로드 실패: ${e.message}")
-            // Fragment 로드 실패 시 기본 Compose UI로 폴백
+            Log.e(TAG, "❌ Activity→Fragment Chain 시작 실패: ${e.message}", e)
+            // Chain 실패 시에도 Fragment는 생성해야 함
         }
-
-        setContent {
-            WebviewTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Column(modifier = Modifier.padding(innerPadding)) {
-                        // 컴팩트한 레이아웃: 높이와 패딩 축소
-                        ServerUrlEditor()
-                        // Fragment 자동 로드를 위해 버튼 제거
-                        WebViewWithUrlController(initialUrl = urlFromIntent)
-                    }
-                }
-            }
-        }
+        
+        val fragment = TestFragment()
+        val fragmentManager = supportFragmentManager
+        val fragmentTransaction = fragmentManager.beginTransaction()
+        fragmentTransaction.replace(android.R.id.content, fragment)
+        fragmentTransaction.commit()
+        
+        Log.i(TAG, "✅ Activity → Fragment → WebView 구조 설정 완료")
     }
+    
     
     override fun onDestroy() {
         super.onDestroy()
         Log.i(TAG, "🛑 MainActivity 종료")
-        // 실제 ScreenGroup 정리
-        try {
-            chainView.endTask("main-activity")
-            Log.i(TAG, "✅ 실제 ScreenGroup 정리 완료")
-        } catch (e: Exception) {
-            Log.d(TAG, "MainActivity 작업 이미 종료됨: ${e.message}")
-        }
     }
     
 }
 
 
-@Composable
-fun FragmentTestButton() {
-    val context = LocalActivity.current as FragmentActivity
-    
-    Button(
-        onClick = {
-            Log.i("WebViewSample", "🔄 Fragment 테스트 버튼 클릭 - Activity → Fragment Chain 시작")
-            
-            // UserLogger API를 사용한 커스텀 로그
-            try {
-                // 간단한 문자열 로그
-                UserLogger.print("Fragment test button clicked")
-                
-                // 구조화된 로그 데이터
-                val logData = HashMap<Any, Any>()
-                logData["event_type"] = "user_action"
-                logData["action"] = "fragment_navigation"
-                logData["button_id"] = "fragment_test_button"
-                logData["screen_name"] = "MainActivity"
-                logData["user_id"] = "test_user_123"
-                logData["timestamp"] = System.currentTimeMillis()
-                logData["device_model"] = android.os.Build.MODEL
-                logData["os_version"] = android.os.Build.VERSION.RELEASE
-                
-                UserLogger.print(logData)
-                Log.i("WebViewSample", "📝 UserLogger 커스텀 로그 전송 완료")
-            } catch (e: Exception) {
-                Log.e("WebViewSample", "❌ UserLogger 커스텀 로그 전송 실패: ${e.message}")
-            }
-            
-            try {
-                // Activity → Fragment Chain 연결
-                MainActivity.chainView.startChain("ActivityFragmentChain", "act-frag-${System.currentTimeMillis()}")
-                MainActivity.chainView.endTask("main-activity")
-                MainActivity.chainView.startTask("TestFragment", "fragment-transition")
-                
-                context.supportFragmentManager.beginTransaction()
-                    .replace(android.R.id.content, TestFragment())
-                    .addToBackStack("TestFragment")
-                    .commit()
-                    
-                Log.i("WebViewSample", "✅ Activity → Fragment Chain 연결 및 Fragment 실행 성공")
-            } catch (e: Exception) {
-                Log.e("WebViewSample", "❌ Fragment 실행 실패: ${e.message}")
-                Toast.makeText(context, "Fragment 실행 실패: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 2.dp)
-            .height(32.dp)
-    ) {
-        Text("Fragment", fontSize = 11.sp)
-    }
-}
 
 @Composable
 fun ServerUrlEditor() {
     val context = LocalContext.current
     val sharedPrefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
-    val defaultUrl = "http://192.168.1.73:8080/m"
+    val defaultUrl = "https://rumote.whatap-mobile-agent.io/m"
     var text by remember {
         mutableStateOf(TextFieldValue(sharedPrefs.getString("server_url", defaultUrl) ?: defaultUrl))
     }
@@ -332,15 +254,7 @@ fun WebViewWithUrlController(initialUrl: String) {
                             super.onPageStarted(view, url, favicon)
                             url?.let {
                                 Log.i("WebViewSample", "🌐 WebView 페이지 로드 시작: $it")
-                                try {
-                                    // 실제 WebView Chain 시작
-                                    MainActivity.chainView.startChain("WebLoadChain", "web-chain-${it.hashCode()}")
-                                    MainActivity.chainView.endTask("main-activity")
-                                    MainActivity.chainView.startTask(it, "webview-${it.hashCode()}")
-                                    Log.i("WebViewSample", "✅ 실제 ScreenGroup WebView Chain 시작: $it")
-                                } catch (e: Exception) {
-                                    Log.e("WebViewSample", "❌ WebView Chain 시작 실패: ${e.message}")
-                                }
+                                // Chain은 이미 시작되었으므로 추가 작업 불필요
                             }
                         }
                         
@@ -348,13 +262,6 @@ fun WebViewWithUrlController(initialUrl: String) {
                             super.onPageFinished(view, url)
                             url?.let {
                                 Log.i("WebViewSample", "✅ WebView 페이지 로드 완료: $it")
-                                try {
-                                    // 실제 WebView Chain 종료
-                                    MainActivity.chainView.endChain("web-chain-${it.hashCode()}")
-                                    Log.i("WebViewSample", "✅ 실제 ScreenGroup WebView Chain 종료: $it")
-                                } catch (e: Exception) {
-                                    Log.e("WebViewSample", "❌ WebView Chain 종료 실패: ${e.message}")
-                                }
                                 Toast.makeText(ctx, "페이지 로드 완료: $it", Toast.LENGTH_SHORT).show()
                             }
                         }
@@ -363,20 +270,6 @@ fun WebViewWithUrlController(initialUrl: String) {
                             super.doUpdateVisitedHistory(view, url, isReload)
                             if (!isReload && url != null) {
                                 Log.i("WebViewSample", "🔄 WebView 내부 네비게이션: $url")
-                                try {
-                                    // 실제 페이지 네비게이션 Chain
-                                    view?.url?.let { currentUrl ->
-                                        if (currentUrl != url) {
-                                            MainActivity.chainView.endTask("webview-${currentUrl.hashCode()}")
-                                            MainActivity.chainView.startChain("NavigationChain", "nav-chain-${url.hashCode()}")
-                                            MainActivity.chainView.startTask(url, "webview-${url.hashCode()}")
-                                            MainActivity.chainView.endChain("nav-chain-${url.hashCode()}")
-                                            Log.i("WebViewSample", "✅ 실제 페이지 네비게이션: $currentUrl → $url")
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e("WebViewSample", "❌ 네비게이션 Chain 실패: ${e.message}")
-                                }
                             }
                         }
                     }

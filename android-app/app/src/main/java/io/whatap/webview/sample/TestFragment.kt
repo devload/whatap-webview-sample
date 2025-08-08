@@ -27,14 +27,17 @@ import io.whatap.android.agent.webview.WhatapWebViewClient
 import io.whatap.android.agent.webview.WhatapWebviewBridge
 import io.whatap.webview.sample.ui.theme.WebviewTheme
 import android.util.Log
-import io.whatap.android.agent.instrumentation.screengroup.ChainView
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.LaunchedEffect
+import io.whatap.android.agent.instrumentation.screengroup.ChainView
 
 class TestFragment : Fragment() {
     companion object {
         private const val TAG = "TestFragment"
-        private val chainView = ChainView()
+        
+        // Fragment→WebView Chain 관리용 변수
+        private var fragmentWebViewChainId: String? = null
+        private var fragmentWebViewChainView: ChainView? = null
     }
     
     override fun onCreateView(
@@ -42,10 +45,34 @@ class TestFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        Log.i(TAG, "🔄 TestFragment onCreateView 시작")
+        Log.i(TAG, "🔄 TestFragment onCreateView 시작 - Fragment instrumentation 테스트 중")
+        Log.i(TAG, "📊 Fragment 구조: Activity → Fragment → WebView")
+        
+        // 🔗 Activity→Fragment Chain 종료 (MainActivity에서 시작된 Chain)
+        try {
+            MainActivity.activityFragmentChainView?.let { chainView ->
+                MainActivity.activityFragmentChainId?.let { chainId ->
+                    chainView.endChain(chainId)
+                    Log.i(TAG, "🔗 Activity→Fragment Chain 종료: $chainId")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Activity→Fragment Chain 종료 실패: ${e.message}", e)
+        }
+        
+        // 🔗 Fragment→WebView Chain 시작 (onCreateView에서 미리 시작)
+        try {
+            fragmentWebViewChainView = ChainView.getInstance()
+            fragmentWebViewChainId = "fragment-webview-${System.currentTimeMillis()}"
+            fragmentWebViewChainView?.startChain("FragmentWebViewChain", fragmentWebViewChainId!!)
+            Log.i(TAG, "🔗 Fragment→WebView Chain 시작 (onCreateView): $fragmentWebViewChainId")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Fragment→WebView Chain 시작 실패: ${e.message}", e)
+        }
         
         // Fragment 시작 작업은 MainActivity에서 이미 수행되므로 생략
         Log.i(TAG, "✅ Fragment ScreenGroup 작업은 MainActivity에서 이미 시작됨: fragment-${hashCode()}")
+        Log.i(TAG, "🎯 WhatapAndroidPlugin Fragment instrumentation 감지 대기 중...")
         
         
         return ComposeView(requireContext()).apply {
@@ -75,7 +102,7 @@ class TestFragment : Fragment() {
     private fun ServerUrlEditor() {
         val context = LocalContext.current
         val sharedPrefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
-        val defaultUrl = "http://192.168.1.73:8080/m"
+        val defaultUrl = "https://rumote.whatap-mobile-agent.io/m"
         var text by remember {
             mutableStateOf(TextFieldValue(sharedPrefs.getString("server_url", defaultUrl) ?: defaultUrl))
         }
@@ -135,6 +162,9 @@ class TestFragment : Fragment() {
             AndroidView(
                 modifier = Modifier.weight(0.55f), // WebView 비율을 55%로 설정
                 factory = { ctx ->
+                    // Fragment→WebView Chain은 이미 onCreateView에서 시작됨
+                    Log.i(TAG, "🌐 WebView factory 실행 - Chain은 이미 활성화됨")
+                    
                     WebView(ctx).apply {
                         settings.javaScriptEnabled = true
 
@@ -148,15 +178,6 @@ class TestFragment : Fragment() {
                                 super.onPageStarted(view, url, favicon)
                                 url?.let {
                                     Log.i(TAG, "🌐 Fragment WebView 페이지 로드 시작: $it")
-                                    try {
-                                        // Fragment → WebView Chain 연결 (WhatapWebViewClient에서 이미 WebView task 생성)
-                                        chainView.startChain("FragmentWebChain", "frag-web-${it.hashCode()}")
-                                        chainView.endTask("fragment-${hashCode()}")
-                                        // WebView task는 WhatapWebViewClient에서 자동 생성되므로 별도 생성하지 않음
-                                        Log.i(TAG, "✅ Fragment → WebView Chain 연결 성공 (WebView task는 자동 생성)")
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "❌ Fragment → WebView Chain 연결 실패: ${e.message}")
-                                    }
                                 }
                             }
                             
@@ -164,13 +185,10 @@ class TestFragment : Fragment() {
                                 super.onPageFinished(view, url)
                                 url?.let {
                                     Log.i(TAG, "✅ Fragment WebView 페이지 로드 완료: $it")
-                                    try {
-                                        chainView.endChain("frag-web-${it.hashCode()}")
-                                        Log.i(TAG, "✅ Fragment WebView Chain 종료")
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "❌ Fragment WebView Chain 종료 실패: ${e.message}")
-                                    }
                                     Toast.makeText(ctx, "페이지 로드 완료: $it", Toast.LENGTH_SHORT).show()
+                                    
+                                    // Fragment→WebView Chain 종료는 WhatapWebViewClient.onPageStarted에서 자동 처리됨
+                                    Log.i(TAG, "🔗 Chain 자동 종료는 WhatapWebViewClient에서 처리됨")
                                 }
                             }
                             
@@ -178,20 +196,6 @@ class TestFragment : Fragment() {
                                 super.doUpdateVisitedHistory(view, url, isReload)
                                 if (!isReload && url != null) {
                                     Log.i(TAG, "🔄 Fragment WebView 내부 네비게이션: $url")
-                                    try {
-                                        // 실제 페이지 네비게이션 Chain
-                                        view?.url?.let { currentUrl ->
-                                            if (currentUrl != url) {
-                                                chainView.endTask("frag-webview-${currentUrl.hashCode()}")
-                                                chainView.startChain("NavigationChain", "nav-chain-${url.hashCode()}")
-                                                chainView.startTask(url, "frag-webview-${url.hashCode()}")
-                                                chainView.endChain("nav-chain-${url.hashCode()}")
-                                                Log.i(TAG, "✅ Fragment 페이지 네비게이션: $currentUrl → $url")
-                                            }
-                                        }
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "❌ Fragment 네비게이션 Chain 실패: ${e.message}")
-                                    }
                                 }
                             }
                         }
@@ -288,11 +292,5 @@ class TestFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         Log.i(TAG, "🛑 TestFragment onDestroyView")
-        try {
-            chainView.endTask("fragment-${hashCode()}")
-            Log.i(TAG, "✅ Fragment ScreenGroup 정리 완료")
-        } catch (e: Exception) {
-            Log.d(TAG, "Fragment 작업 이미 종료됨: ${e.message}")
-        }
     }
 }

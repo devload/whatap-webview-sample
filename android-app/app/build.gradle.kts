@@ -3,34 +3,11 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     
-    // 🎯 최신 WhatapAndroidPlugin 활성화
+    // 🎯 최신 WhatapAndroidPlugin - 제품 필수 구성요소 (비활성화 금지)
     id("io.whatap.plugin") version "1.0.0"
 }
 
-// 🎯 WhatapAndroidPlugin 설정
-whatap {
-    isEnabled = true
-    
-    fragment {
-        enabled = true
-    }
-    
-    okhttp {
-        enabled = true
-    }
-    
-    httpurlconnection {
-        enabled = true
-    }
-    
-    httpclient {
-        enabled = true
-    }
-    
-    volley {
-        enabled = true
-    }
-}
+// 🎯 WhatapAndroidPlugin - 모든 기능 자동 활성화
 
 android {
     namespace = "io.whatap.webview.sample"
@@ -44,6 +21,12 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        // WhatAp 서버 설정 - 한 곳에서 관리
+        buildConfigField("String", "WHATAP_SERVER_URL", "\"https://rumote.whatap-mobile-agent.io/m\"")
+        buildConfigField("int", "WHATAP_PCODE", "3447")
+        buildConfigField("String", "WHATAP_PROJECT_KEY", "\"x43bn212o2cou-z5207095h6tmkj-z3k5tbqb529h1q\"")
+        buildConfigField("String", "WHATAP_PROXY_SERVER", "\"http://192.168.1.73:8080\"")
     }
     
     compileOptions {
@@ -71,6 +54,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     lint {
@@ -104,8 +88,36 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
-    // 🎯 최신 BOM AAR 사용 (r_mtid 포함)
-    implementation(files("libs/whatap-agent-bom-debug.aar"))
+    // 🔧 개별 AAR 방식 (안정적) - Event attributes 수정사항 포함
+    implementation(files(
+        "libs/api-debug.aar",
+        "libs/core-debug.aar", 
+        "libs/whatap-logger-debug.aar",
+        "libs/jsonparser-debug.aar",
+        "libs/session-debug.aar",
+        "libs/sdk-debug.aar",
+        "libs/agent-debug.aar",
+        "libs/common-api-debug.aar",
+        "libs/activity-debug.aar",
+        "libs/fragment-debug.aar",
+        "libs/screengroup-debug.aar",
+        "libs/webview-debug.aar",
+        "libs/network-debug.aar",
+        "libs/crash-debug.aar",
+        "libs/anr-debug.aar",
+        "libs/userlog-debug.aar",
+        "libs/stacktrace-debug.aar",
+        "libs/extra-debug.aar",
+        "libs/exporter-debug.aar",  // 🎯 수정된 Event attributes 포함
+        "libs/cpu-debug.aar",
+        "libs/memory-debug.aar",
+        "libs/temperature-debug.aar",
+        "libs/diskbuffering-debug.aar",  // 🔧 디스크 버퍼링 추가
+        "libs/okhttp-debug.aar",  // 🌐 OkHttp 네트워크 수집
+        "libs/volley-debug.aar",
+        "libs/httpclient-debug.aar",
+        "libs/httpurlconnection-debug.aar"
+    ))
     
     // Core library desugaring (2.1.2 이상 필요)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
