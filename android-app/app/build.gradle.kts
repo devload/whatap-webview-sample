@@ -22,19 +22,20 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
-        // WhatAp 공통 설정
+        // WhatAp 프로덕션 서버 설정
         buildConfigField("int", "WHATAP_PCODE", "3447")
         buildConfigField("String", "WHATAP_PROJECT_KEY", "\"x43bn212o2cou-z5207095h6tmkj-z3k5tbqb529h1q\"")
-        buildConfigField("String", "WHATAP_PROXY_SERVER", "\"http://192.168.1.73:8080\"")
+        buildConfigField("String", "WHATAP_SERVER_URL", "\"https://rumote.whatap-mobile-agent.io/m\"")
     }
     
     buildTypes {
         debug {
-            // Development variant - 로컬 서버 사용
-            buildConfigField("String", "WHATAP_SERVER_URL", "\"http://192.168.1.73:8080/m\"")
-            buildConfigField("String", "VARIANT_TYPE", "\"dev\"")
-            applicationIdSuffix = ".dev"
-            versionNameSuffix = "-dev"
+            // Debug variant - 프로덕션 서버 사용
+            buildConfigField("String", "WHATAP_SERVER_URL", "\"https://rumote.whatap-mobile-agent.io/m\"")
+            buildConfigField("String", "VARIANT_TYPE", "\"prod\"")
+            // applicationIdSuffix 제거하여 동일한 앱으로 관리
+            // applicationIdSuffix = ".dev"
+            // versionNameSuffix = "-dev"
         }
         release {
             // Production variant - rumote 서버 사용  

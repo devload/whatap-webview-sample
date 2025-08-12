@@ -86,7 +86,7 @@ class TestFragment : Fragment() {
     
     @Composable
     private fun FragmentContent() {
-        val defaultUrl = "http://192.168.1.6:18000/"
+        val defaultUrl = "http://192.168.1.6:18000/#whatap_debug_mode"
         val urlFromIntent = activity?.intent?.getStringExtra("URL") ?: defaultUrl
         
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -189,6 +189,45 @@ class TestFragment : Fragment() {
                                     
                                     // Fragment→WebView Chain 종료는 WhatapWebViewClient.onPageStarted에서 자동 처리됨
                                     Log.i(TAG, "🔗 Chain 자동 종료는 WhatapWebViewClient에서 처리됨")
+                                    
+                                    // pageLoad 이벤트를 JavaScript에서 직접 발생시켜 테스트
+                                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                        try {
+                                            val testData = """{
+                                                "meta": {
+                                                    "pageLocation": "$it"
+                                                },
+                                                "pageLoad": {
+                                                    "totalDuration": 2574,
+                                                    "navigationTiming": {
+                                                        "data": {
+                                                            "loadTime": 2452,
+                                                            "backendTime": 106,
+                                                            "renderTime": {
+                                                                "duration": 2063
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }"""
+                                            val testTaskId = "test_task_" + System.currentTimeMillis()
+                                            val testTraceId = "trace_" + System.currentTimeMillis()
+                                            
+                                            view?.evaluateJavascript("""
+                                                if (window.whatapBridge) {
+                                                    console.log('🔥 Testing pageLoad with data: $testData');
+                                                    window.whatapBridge.pageLoad('$testData', '$testTaskId', '$testTraceId');
+                                                    console.log('✅ pageLoad call completed');
+                                                } else {
+                                                    console.log('❌ whatapBridge not available');
+                                                }
+                                            """.trimIndent()) { result ->
+                                                Log.i(TAG, "🔥 JavaScript pageLoad test result: $result")
+                                            }
+                                        } catch (e: Exception) {
+                                            Log.e(TAG, "❌ JavaScript pageLoad test failed: ${e.message}")
+                                        }
+                                    }, 2000) // 2초 후 실행
                                 }
                             }
                             

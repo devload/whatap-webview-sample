@@ -106,7 +106,6 @@ class MainActivity : FragmentActivity() {
         addExportLog("📱 디바이스: ${android.os.Build.MODEL}")
         addExportLog("🔧 Build Variant: ${BuildConfig.VARIANT_TYPE}")
         addExportLog("🌐 WhatAp 서버: ${BuildConfig.WHATAP_SERVER_URL}")
-        addExportLog("🌐 프록시 서버: ${BuildConfig.WHATAP_PROXY_SERVER}")
         addExportLog("🔗 백그라운드 HTTP 요청 시작 (5초 간격)")
         
         // WebView 브리지 로그 테스트
