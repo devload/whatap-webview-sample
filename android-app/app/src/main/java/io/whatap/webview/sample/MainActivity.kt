@@ -98,6 +98,21 @@ class MainActivity : FragmentActivity() {
         // Export 로그 수집 시작
         startLogCollection()
         
+        // 🚨 BuildConfig로 ANR/크래시 테스트 제어
+        val enableANRTest = BuildConfig.ENABLE_ANR_TEST
+        val enableCrashTest = BuildConfig.ENABLE_CRASH_TEST
+        
+        if (enableANRTest || enableCrashTest) {
+            Log.w(TAG, "⚠️ 테스트 활성화 - ANR: $enableANRTest, Crash: $enableCrashTest")
+            Handler(Looper.getMainLooper()).postDelayed({
+                if (enableANRTest) {
+                    triggerANR()
+                } else if (enableCrashTest) {
+                    triggerCrash()
+                }
+            }, 15000) // 15초 후 실행 (데이터 전송 시간 확보)
+        }
+        
         // 백그라운드 네트워크 요청 시작
         startBackgroundNetworkRequests()
         
@@ -144,9 +159,56 @@ class MainActivity : FragmentActivity() {
             Log.e(TAG, "❌ UserLogger 커스텀 로그 전송 실패: ${e.message}")
         }
 
-        val defaultUrl = "http://192.168.1.6:18000/"
+        val defaultUrl = "http://192.168.1.6:18000/#whatap_debug_mode#android_test#bridge_debug"
         val urlFromIntent = intent.getStringExtra("URL") ?: defaultUrl
 
+        // 🔴 간헐적 ANR 테스트 (BuildConfig로 제어)
+        if (BuildConfig.ENABLE_ANR_TEST && kotlin.random.Random.nextFloat() < 0.8f) {
+            Log.e(TAG, "⚠️ ANR 테스트: 메인 스레드 10초 블로킹 시작!")
+            addExportLog("⚠️ ANR 테스트 시작: 10초 Sleep")
+            Thread.sleep(10000) // 메인 스레드 10초 블로킹 (ANR 유발)
+            Log.e(TAG, "⚠️ ANR 테스트: 10초 블로킹 완료")
+            addExportLog("⚠️ ANR 테스트 완료")
+        }
+        
+        // 💥 10초 후 강제 크래시 발생 (BuildConfig로 제어)
+        if (BuildConfig.ENABLE_CRASH_TEST) {
+            Handler(Looper.getMainLooper()).postDelayed({
+                Log.e(TAG, "💥 크래시 테스트: 10초 경과, 강제 크래시 발생!")
+                addExportLog("💥 강제 크래시 발생!")
+                
+                // 다양한 크래시 타입 중 랜덤 선택
+                val crashType = kotlin.random.Random.nextInt(4)
+                when (crashType) {
+                    0 -> {
+                        // NullPointerException
+                        Log.e(TAG, "💥 크래시 타입: NullPointerException")
+                        val nullString: String? = null
+                        nullString!!.length // 강제 NPE 발생
+                    }
+                    1 -> {
+                        // ArrayIndexOutOfBoundsException
+                        Log.e(TAG, "💥 크래시 타입: ArrayIndexOutOfBoundsException")
+                        val array = intArrayOf(1, 2, 3)
+                        array[10] // 배열 범위 초과
+                    }
+                    2 -> {
+                        // IllegalStateException
+                        Log.e(TAG, "💥 크래시 타입: IllegalStateException")
+                        throw IllegalStateException("테스트용 강제 크래시 - WhatapAgent 크래시 수집 테스트")
+                    }
+                    3 -> {
+                        // RuntimeException
+                        Log.e(TAG, "💥 크래시 타입: RuntimeException")
+                        throw RuntimeException("강제 크래시: WhatapAgent 크래시 리포팅 테스트")
+                    }
+                }
+            }, 10000)
+        } // 10초 후 실행
+        
+        Log.i(TAG, "⏰ 크래시 타이머 설정 완료: 10초 후 강제 크래시 예정")
+        addExportLog("⏰ 10초 후 크래시 예정")
+        
         // Activity → Fragment → WebView 구조 설정
         Log.i(TAG, "🔧 Activity → Fragment → WebView 구조 준비 중...")
         
@@ -174,6 +236,21 @@ class MainActivity : FragmentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         Log.i(TAG, "🛑 MainActivity 종료")
+    }
+    
+    // 🚨 ANR 트리거 함수
+    private fun triggerANR() {
+        Log.e(TAG, "🔴 ANR 테스트 시작 - 메인 스레드 10초 블록")
+        Thread.sleep(10000) // ANR 유발 (10초 블록 - ANR은 5초 이상 블록 시 발생)
+        Log.e(TAG, "🔴 ANR 테스트 완료")
+    }
+    
+    // 💥 크래시 트리거 함수
+    private fun triggerCrash() {
+        Log.e(TAG, "💥 실제 크래시 발생 - NullPointerException")
+        val nullString: String? = null
+        val result = nullString!!.length // 실제 크래시 발생 (catch 없음)
+        Log.e(TAG, "이 로그는 출력되지 않음: $result")
     }
     
 }
@@ -488,3 +565,4 @@ private fun MainActivity.startLogCollection() {
         }
     }.start()
 }
+

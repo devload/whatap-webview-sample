@@ -86,7 +86,7 @@ class TestFragment : Fragment() {
     
     @Composable
     private fun FragmentContent() {
-        val defaultUrl = "http://192.168.1.6:18000/#whatap_debug_mode"
+        val defaultUrl = "http://192.168.1.6:18000/#whatap_debug_mode#android_test#bridge_debug"
         val urlFromIntent = activity?.intent?.getStringExtra("URL") ?: defaultUrl
         
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->

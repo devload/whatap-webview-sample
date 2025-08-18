@@ -22,10 +22,14 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
-        // WhatAp 프로덕션 서버 설정
-        buildConfigField("int", "WHATAP_PCODE", "3447")
-        buildConfigField("String", "WHATAP_PROJECT_KEY", "\"x43bn212o2cou-z5207095h6tmkj-z3k5tbqb529h1q\"")
+        // WhatAp 프로덕션 서버 설정 (새 설정)
+        buildConfigField("int", "WHATAP_PCODE", "3108")
+        buildConfigField("String", "WHATAP_PROJECT_KEY", "\"x431422fk0h9a-x45fmbh3gj5v0u-x6bnq98q40qgtd\"")
         buildConfigField("String", "WHATAP_SERVER_URL", "\"https://rumote.whatap-mobile-agent.io/m\"")
+        
+        // Test configuration flags from gradle.properties
+        buildConfigField("boolean", "ENABLE_CRASH_TEST", project.properties["enableCrashTest"]?.toString() ?: "false")
+        buildConfigField("boolean", "ENABLE_ANR_TEST", project.properties["enableAnrTest"]?.toString() ?: "false")
     }
     
     buildTypes {
