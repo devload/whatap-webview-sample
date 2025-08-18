@@ -1,11 +1,16 @@
+buildscript {
+    dependencies {
+        classpath(files("libs/WhatapAndroidPlugin-1.1.3.jar"))
+    }
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    
-    // 🎯 최신 WhatapAndroidPlugin - Ultra-Safe 구현 적용
-    id("io.whatap.plugin") version "1.0.0"
 }
+
+apply(plugin = "io.whatap.plugin")
 
 // 🎯 WhatapAndroidPlugin - 모든 기능 자동 활성화
 
@@ -22,9 +27,9 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
-        // WhatAp 프로덕션 서버 설정 (새 설정)
-        buildConfigField("int", "WHATAP_PCODE", "3108")
-        buildConfigField("String", "WHATAP_PROJECT_KEY", "\"x431422fk0h9a-x45fmbh3gj5v0u-x6bnq98q40qgtd\"")
+        // WhatAp 프로덕션 서버 설정 (디바이스용)
+        buildConfigField("int", "WHATAP_PCODE", "3447")
+        buildConfigField("String", "WHATAP_PROJECT_KEY", "\"x43bn212o2cou-z5207095h6tmkj-z3k5tbqb529h1q\"")
         buildConfigField("String", "WHATAP_SERVER_URL", "\"https://rumote.whatap-mobile-agent.io/m\"")
         
         // Test configuration flags from gradle.properties
@@ -34,17 +39,17 @@ android {
     
     buildTypes {
         debug {
-            // Debug variant - 프로덕션 서버 사용
+            // Debug variant - 디바이스용 서버 사용
             buildConfigField("String", "WHATAP_SERVER_URL", "\"https://rumote.whatap-mobile-agent.io/m\"")
-            buildConfigField("String", "VARIANT_TYPE", "\"prod\"")
+            buildConfigField("String", "VARIANT_TYPE", "\"device\"")
             // applicationIdSuffix 제거하여 동일한 앱으로 관리
             // applicationIdSuffix = ".dev"
             // versionNameSuffix = "-dev"
         }
         release {
-            // Production variant - rumote 서버 사용  
+            // Release variant - 디바이스용 서버 사용  
             buildConfigField("String", "WHATAP_SERVER_URL", "\"https://rumote.whatap-mobile-agent.io/m\"")
-            buildConfigField("String", "VARIANT_TYPE", "\"prod\"")
+            buildConfigField("String", "VARIANT_TYPE", "\"device\"")
             isMinifyEnabled = false
             // debug signing 사용 (테스트용)
             signingConfig = signingConfigs.getByName("debug")

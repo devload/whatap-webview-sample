@@ -98,12 +98,16 @@ class MainActivity : FragmentActivity() {
         // Export 로그 수집 시작
         startLogCollection()
         
-        // 🚨 BuildConfig로 ANR/크래시 테스트 제어
+        // 🚨 VIVO 디바이스에서만 ANR/크래시 테스트 실행
         val enableANRTest = BuildConfig.ENABLE_ANR_TEST
         val enableCrashTest = BuildConfig.ENABLE_CRASH_TEST
+        val isVivoDevice = android.os.Build.MODEL.startsWith("V") && android.os.Build.MANUFACTURER.equals("vivo", ignoreCase = true)
         
-        if (enableANRTest || enableCrashTest) {
-            Log.w(TAG, "⚠️ 테스트 활성화 - ANR: $enableANRTest, Crash: $enableCrashTest")
+        Log.i(TAG, "📱 디바이스 정보 - 제조사: ${android.os.Build.MANUFACTURER}, 모델: ${android.os.Build.MODEL}")
+        Log.i(TAG, "🔍 VIVO 디바이스 여부: $isVivoDevice")
+        
+        if ((enableANRTest || enableCrashTest) && isVivoDevice) {
+            Log.w(TAG, "⚠️ VIVO 디바이스에서 테스트 활성화 - ANR: $enableANRTest, Crash: $enableCrashTest")
             Handler(Looper.getMainLooper()).postDelayed({
                 if (enableANRTest) {
                     triggerANR()
@@ -111,6 +115,9 @@ class MainActivity : FragmentActivity() {
                     triggerCrash()
                 }
             }, 15000) // 15초 후 실행 (데이터 전송 시간 확보)
+        } else if (enableANRTest || enableCrashTest) {
+            Log.i(TAG, "ℹ️ 테스트는 활성화되었지만 VIVO 디바이스가 아니므로 크래시/ANR을 건너뜁니다")
+            addExportLog("ℹ️ 비-VIVO 디바이스: 크래시/ANR 테스트 건너뜀")
         }
         
         // 백그라운드 네트워크 요청 시작
@@ -159,55 +166,8 @@ class MainActivity : FragmentActivity() {
             Log.e(TAG, "❌ UserLogger 커스텀 로그 전송 실패: ${e.message}")
         }
 
-        val defaultUrl = "http://192.168.1.6:18000/#whatap_debug_mode#android_test#bridge_debug"
+        val defaultUrl = "http://192.168.1.73:18000/#whatap_debug_mode#android_test#bridge_debug"
         val urlFromIntent = intent.getStringExtra("URL") ?: defaultUrl
-
-        // 🔴 간헐적 ANR 테스트 (BuildConfig로 제어)
-        if (BuildConfig.ENABLE_ANR_TEST && kotlin.random.Random.nextFloat() < 0.8f) {
-            Log.e(TAG, "⚠️ ANR 테스트: 메인 스레드 10초 블로킹 시작!")
-            addExportLog("⚠️ ANR 테스트 시작: 10초 Sleep")
-            Thread.sleep(10000) // 메인 스레드 10초 블로킹 (ANR 유발)
-            Log.e(TAG, "⚠️ ANR 테스트: 10초 블로킹 완료")
-            addExportLog("⚠️ ANR 테스트 완료")
-        }
-        
-        // 💥 10초 후 강제 크래시 발생 (BuildConfig로 제어)
-        if (BuildConfig.ENABLE_CRASH_TEST) {
-            Handler(Looper.getMainLooper()).postDelayed({
-                Log.e(TAG, "💥 크래시 테스트: 10초 경과, 강제 크래시 발생!")
-                addExportLog("💥 강제 크래시 발생!")
-                
-                // 다양한 크래시 타입 중 랜덤 선택
-                val crashType = kotlin.random.Random.nextInt(4)
-                when (crashType) {
-                    0 -> {
-                        // NullPointerException
-                        Log.e(TAG, "💥 크래시 타입: NullPointerException")
-                        val nullString: String? = null
-                        nullString!!.length // 강제 NPE 발생
-                    }
-                    1 -> {
-                        // ArrayIndexOutOfBoundsException
-                        Log.e(TAG, "💥 크래시 타입: ArrayIndexOutOfBoundsException")
-                        val array = intArrayOf(1, 2, 3)
-                        array[10] // 배열 범위 초과
-                    }
-                    2 -> {
-                        // IllegalStateException
-                        Log.e(TAG, "💥 크래시 타입: IllegalStateException")
-                        throw IllegalStateException("테스트용 강제 크래시 - WhatapAgent 크래시 수집 테스트")
-                    }
-                    3 -> {
-                        // RuntimeException
-                        Log.e(TAG, "💥 크래시 타입: RuntimeException")
-                        throw RuntimeException("강제 크래시: WhatapAgent 크래시 리포팅 테스트")
-                    }
-                }
-            }, 10000)
-        } // 10초 후 실행
-        
-        Log.i(TAG, "⏰ 크래시 타이머 설정 완료: 10초 후 강제 크래시 예정")
-        addExportLog("⏰ 10초 후 크래시 예정")
         
         // Activity → Fragment → WebView 구조 설정
         Log.i(TAG, "🔧 Activity → Fragment → WebView 구조 준비 중...")
