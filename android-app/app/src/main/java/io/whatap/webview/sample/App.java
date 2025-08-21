@@ -6,6 +6,9 @@ import android.util.Log;
 
 import io.whatap.android.agent.WhatapAgent;
 import io.whatap.android.logger.common.WLoggerFactory;
+import io.whatap.android.agent.api.TraceOption;
+import io.whatap.android.agent.api.MethodTraceOption;
+import whatap.android.agent.instrumentation.stacktrace.CallStackTracer;
 
 public class App extends Application {
     private static final String TAG = "WhatapSampleApp";
@@ -32,10 +35,27 @@ public class App extends Application {
         String projectKey = BuildConfig.WHATAP_PROJECT_KEY;
         
         try {
+            // Test 3: Depth 필터 (3 depth까지만 추적)
+            Log.i(TAG, "🧪 TEST 3: Depth 필터 테스트 시작 - 3 depth까지만 추적");
+            TraceOption traceOption = TraceOption.builder()
+                    .enabled(true)
+                    .samplingRate(1.0f)  // 100% 샘플링
+                    .maxBatchSize(50)    
+                    .batchTimeoutMs(500)
+                    .methodTraceOption(MethodTraceOption.builder()
+                            .maxCallDepth(3)  // 3 depth까지만 추적
+                            .build())
+                    .build();
+            
+            // CallStackTracer에 옵션 설정
+            CallStackTracer.setTraceOption(traceOption);
+            Log.i(TAG, "✅ TEST 3: TraceOption 설정 완료 - 3 depth까지만 추적되어야 함");
+            
             WhatapAgent.Builder.newBuilder()
                     .setServerUrl(serverUrl)  // BuildConfig에서 설정된 서버 사용
                     .setPCode(pCode)
                     .setProjectKey(projectKey)
+                    // .setTraceOption(traceOption)  // TraceOption 설정 (SDK가 지원하는 경우)
                     .build(this);
             
             Log.i(TAG, "🚀 WhatapAgent 초기화 성공");

@@ -88,9 +88,42 @@ class MainActivity : FragmentActivity() {
         }
     }
     
+    // Test 3: Depth 필터 테스트용 메서드 체인
+    private fun testDepth1() {
+        Log.d(TAG, "Depth 1 called")
+        Thread.sleep(2)  // 2ms delay
+        testDepth2()
+    }
+    
+    private fun testDepth2() {
+        Log.d(TAG, "Depth 2 called")
+        Thread.sleep(2)  // 2ms delay
+        testDepth3()
+    }
+    
+    private fun testDepth3() {
+        Log.d(TAG, "Depth 3 called")
+        Thread.sleep(2)  // 2ms delay
+        testDepth4()
+    }
+    
+    private fun testDepth4() {
+        Log.d(TAG, "Depth 4 called - 이 메서드는 추적되지 않아야 함")
+        Thread.sleep(2)  // 2ms delay
+        testDepth5()
+    }
+    
+    private fun testDepth5() {
+        Log.d(TAG, "Depth 5 called - 이 메서드는 추적되지 않아야 함")
+        Thread.sleep(2)  // 2ms delay
+    }
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WebView.setWebContentsDebuggingEnabled(true)
+        
+        // Test 3: Depth 필터 테스트 실행
+        testDepth1()
 
         // QAFileLogger는 Application에서 이미 설정됨
         Log.i(TAG, "📄 QAFileLogger가 Application에서 설정됨")

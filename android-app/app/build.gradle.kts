@@ -105,39 +105,43 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
-    // ✅ BOM AAR 방식 (내부 원칙 준수) - 모든 모듈 통합 패키지  
-    // implementation(files("libs/whatap-agent-bom-complete.aar"))  // TODO: BOM에 getInstance() 메서드 누락
+    // ❌ BOM 빌드 실패로 개별 AAR 사용
+    // Core modules
+    implementation(files("libs/api-debug.aar"))
+    implementation(files("libs/core-debug.aar"))
+    implementation(files("libs/whatap-logger-debug.aar"))
+    implementation(files("libs/jsonparser-debug.aar"))
+    implementation(files("libs/session-debug.aar"))
+    implementation(files("libs/sdk-debug.aar"))
+    implementation(files("libs/agent-debug.aar"))
     
-    // 🔧 개별 AAR 방식 (호환성) - 빌드 성공 보장
-    implementation(files(
-        "libs/api-debug.aar",
-        "libs/core-debug.aar", 
-        "libs/whatap-logger-debug.aar",
-        "libs/jsonparser-debug.aar",
-        "libs/session-debug.aar",
-        "libs/sdk-debug.aar",
-        "libs/agent-debug.aar",
-        "libs/common-api-debug.aar",
-        "libs/activity-debug.aar",
-        "libs/fragment-debug.aar",
-        "libs/screengroup-debug.aar",  // ChainView.getInstance() 포함
-        "libs/webview-debug.aar",
-        "libs/network-debug.aar",
-        "libs/crash-debug.aar",
-        "libs/anr-debug.aar",
-        "libs/userlog-debug.aar",
-        "libs/stacktrace-debug.aar",
-        "libs/extra-debug.aar",
-        "libs/exporter-debug.aar",  // 수정된 Event attributes 포함
-        "libs/cpu-debug.aar",
-        "libs/memory-debug.aar",
-        "libs/temperature-debug.aar",
-        "libs/diskbuffering-debug.aar",
-        "libs/okhttp-debug.aar",  // 네트워크 instrumentation 수정사항 포함
-        "libs/volley-debug.aar",
-        "libs/httpclient-debug.aar",
-        "libs/httpurlconnection-debug.aar"
-    ))
+    // Instrumentation modules
+    implementation(files("libs/common-api-debug.aar"))
+    implementation(files("libs/activity-debug.aar"))
+    implementation(files("libs/fragment-debug.aar"))
+    implementation(files("libs/screengroup-debug.aar"))
+    implementation(files("libs/webview-debug.aar"))
+    implementation(files("libs/network-debug.aar"))
+    implementation(files("libs/crash-debug.aar"))
+    implementation(files("libs/anr-debug.aar"))
+    implementation(files("libs/userlog-debug.aar"))
+    implementation(files("libs/stacktrace-debug.aar"))
+    implementation(files("libs/extra-debug.aar"))
+    
+    // Resource monitoring
+    implementation(files("libs/cpu-debug.aar"))
+    implementation(files("libs/memory-debug.aar"))
+    implementation(files("libs/temperature-debug.aar"))
+    
+    // Extension modules
+    implementation(files("libs/okhttp-debug.aar"))
+    implementation(files("libs/volley-debug.aar"))
+    implementation(files("libs/httpclient-debug.aar"))
+    implementation(files("libs/httpurlconnection-debug.aar"))
+    
+    // Support modules
+    implementation(files("libs/diskbuffering-debug.aar"))
+    implementation(files("libs/exporter-debug.aar"))
     
     // Core library desugaring (2.1.2 이상 필요)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
